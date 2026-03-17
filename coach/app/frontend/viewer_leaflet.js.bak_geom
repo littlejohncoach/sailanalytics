@@ -1,0 +1,390 @@
+// viewer_leaflet.js
+import { apiGet } from "./api_client.js";
+import { state } from "./state.js";
+
+let map = null;
+let layersBySailor = new Map();     // sailor -> polyline
+let markerBySailor = new Map();     // sailor -> small start marker
+let timeMarksBySailor = new Map();  // sailor -> array of time markers (dots + labels)
+
+// Store current refresh track points so we can place bearing labels away from crowded tracks
+let trackLatLngsBySailor = new Map(); // sailor -> [[lat, lon], ...]
+
+/**
+ * Geometry overlay (rum line + marks + bearing)
+ */
+let geometryLayer = null;
+let geometryCache = {};
+
+function clearTracks() {
+  for (const [, layer] of layersBySailor) {
+    try { map.removeLayer(layer); } catch (_) {}
+  }
+  layersBySailor.clear();
+
+  for (const [, m] of markerBySailor) {
+    try { map.removeLayer(m); } catch (_) {}
+  }
+  markerBySailor.clear();
+
+  for (const [, arr] of timeMarksBySailor) {
+    if (!Array.isArray(arr)) continue;
+    for (const obj of arr) {
+      try { map.removeLayer(obj); } catch (_) {}
+    }
+  }
+  timeMarksBySailor.clear();
+
+  if (geometryLayer) {
+    try { geometryLayer.clearLayers(); } catch (_) {}
+  }
+}
+
+export function initViewer() {
+  // Fine zoom control: fractional zoom steps + slower wheel zoom
+  const ZOOM_STEP = 0.25;
+  const WHEEL_PX_PER_ZOOM = 240;
+
+  // Disable default control so we can use a "native" control with custom step
+  map = L.map("map", {
+    zoomControl: false,
+    zoomSnap: ZOOM_STEP,
+    zoomDelta: ZOOM_STEP,
+    wheelPxPerZoomLevel: WHEEL_PX_PER_ZOOM,
+  });
+
+  // Basic OSM tiles
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 19,
+    attribution: "&copy; OpenStreetMap contributors",
+  }).addTo(map);
+
+  // Use Leaflet's built-in zoom control UI, but override the increment to ZOOM_STEP
+  const FineZoomControl = L.Control.Zoom.extend({
+    _zoomIn: function (e) {
+      L.DomEvent.stop(e);
+      this._map.zoomIn(ZOOM_STEP);
+    },
+    _zoomOut: function (e) {
+      L.DomEvent.stop(e);
+      this._map.zoomOut(ZOOM_STEP);
+    },
+  });
+
+  map.addControl(new FineZoomControl({ position: "topleft" }));
+
+  // Geometry overlay layer (added once)
+  geometryLayer = L.layerGroup().addTo(map);
+
+  // Default view (will be overridden once tracks load)
+  map.setView([0, 0], 2);
+}
+
+// -------------------------------------------------
+// Geometry API loader + renderer
+// -------------------------------------------------
+async function loadGeometry(raceId) {
+  if (geometryCache[raceId]) return geometryCache[raceId];
+
+  const res = await fetch(`/api/geometry?race_id=${raceId}`);
+  if (!res.ok) return null;
+
+  const data = await res.json();
+  geometryCache[raceId] = data;
+  return data;
+}
+
+/**
+ * Choose a label location near the "to" mark that is:
+ * - perpendicular to the rum line (screen space)
+ * - on the side with greater clearance from nearby tracks (screen pixels)
+ */
+function chooseBearingLabelLatLng(fromLL, toLL, offsetPx) {
+  const fromPt = map.latLngToLayerPoint(fromLL);
+  const toPt = map.latLngToLayerPoint(toLL);
+
+  const dx = toPt.x - fromPt.x;
+  const dy = toPt.y - fromPt.y;
+  const mag = Math.hypot(dx, dy) || 1;
+
+  // unit along-line vector (screen space)
+  const ux = dx / mag;
+  const uy = dy / mag;
+
+  // perpendicular unit vectors (screen space)
+  const px1 = -uy, py1 = ux;
+  const px2 = uy, py2 = -ux;
+
+  const cand1 = L.point(toPt.x + px1 * offsetPx, toPt.y + py1 * offsetPx);
+  const cand2 = L.point(toPt.x + px2 * offsetPx, toPt.y + py2 * offsetPx);
+
+  // Gather track points near the mark (pixel space)
+  const nearby = [];
+  const R = 140; // px "crowding zone" radius around mark
+  const MAX_SAMPLE_PER_TRACK = 120; // cap for performance
+
+  for (const [, latlngs] of trackLatLngsBySailor) {
+    if (!Array.isArray(latlngs) || latlngs.length === 0) continue;
+
+    // Sample the tail of each track (often where the crowding is). If too short, it still works.
+    const startIdx = Math.max(0, latlngs.length - MAX_SAMPLE_PER_TRACK);
+
+    for (let i = startIdx; i < latlngs.length; i++) {
+      const ll = latlngs[i];
+      const p = map.latLngToLayerPoint(ll);
+      const d = Math.hypot(p.x - toPt.x, p.y - toPt.y);
+      if (d <= R) nearby.push(p);
+    }
+  }
+
+  // If nothing nearby, default to cand1
+  if (nearby.length === 0) {
+    return map.layerPointToLatLng(cand1);
+  }
+
+  // Score = minimum distance to any nearby point (bigger is better)
+  function score(candidatePt) {
+    let minD = Infinity;
+    for (const p of nearby) {
+      const d = Math.hypot(p.x - candidatePt.x, p.y - candidatePt.y);
+      if (d < minD) minD = d;
+    }
+    return minD;
+  }
+
+  const s1 = score(cand1);
+  const s2 = score(cand2);
+
+  return map.layerPointToLatLng(s2 > s1 ? cand2 : cand1);
+}
+
+function renderGeometry(geometry, selectedLeg) {
+  if (!geometry || !geometryLayer) return;
+  geometryLayer.clearLayers();
+
+  // Red dots for marks
+  geometry.marks.forEach(m => {
+    L.circleMarker([m.lat, m.lon], {
+      radius: 5,
+      color: "red",
+      weight: 2,
+      fillColor: "red",
+      fillOpacity: 0.9
+    }).addTo(geometryLayer);
+  });
+
+  // Only draw rum line + bearing label if a specific leg is selected
+  if (!selectedLeg || selectedLeg === "Total Race") return;
+
+  const legId = Number(selectedLeg);
+  const leg = geometry.legs.find(l => Number(l.leg_id) === legId);
+  if (!leg) return;
+
+  // Rum line (faint grey, dashed)
+  L.polyline([leg.from, leg.to], {
+    color: "#777",
+    weight: 2,
+    opacity: 0.6,
+    dashArray: "4,8"
+  }).addTo(geometryLayer);
+
+  // Bearing label near the TO mark, placed away from track crowding
+  const fromLL = L.latLng(leg.from[0], leg.from[1]);
+  const toLL = L.latLng(leg.to[0], leg.to[1]);
+
+  // Pixel offset distance from mark (increase if you want further away)
+  const labelLL = chooseBearingLabelLatLng(fromLL, toLL, 52);
+
+  L.marker(labelLL, {
+    interactive: false,
+    icon: L.divIcon({
+      // Empty className prevents Leaflet's default white square
+      className: "",
+      html: `
+        <div style="
+          font-size:22px;
+          font-weight:700;
+          color:#444;
+          background:transparent;
+          padding:0;
+          margin:0;
+          border:none;
+          white-space:nowrap;
+          text-shadow: 0 0 3px rgba(255,255,255,0.95), 0 0 7px rgba(255,255,255,0.8);
+          user-select:none;
+          pointer-events:none;
+        ">
+          ${leg.bearing_deg}°
+        </div>
+      `,
+      iconSize: [0, 0],
+      iconAnchor: [0, 0],
+    })
+  }).addTo(geometryLayer);
+}
+
+function addTimeMarkersForTrack(sailor, pts) {
+  const created = [];
+  const DOT_RADIUS = 3;
+
+  for (const p of pts) {
+    const lat = Number(p.lat);
+    const lon = Number(p.lon);
+    const t = Number(p.t);
+
+    if (!Number.isFinite(lat) || !Number.isFinite(lon) || !Number.isFinite(t)) continue;
+
+    const tt = Math.trunc(t);
+    const mod = ((tt % 60) + 60) % 60;
+
+    // Half-minute dot only (white)
+    if (mod === 30) {
+      const dot = L.circleMarker([lat, lon], {
+        radius: DOT_RADIUS,
+        color: "#FFFFFF",
+        opacity: 1.0,
+        fillColor: "#FFFFFF",
+        fillOpacity: 1.0,
+        weight: 1,
+      });
+      dot.addTo(map);
+      created.push(dot);
+      continue;
+    }
+
+    // Whole-minute label only (white) — but start at 1:00 (t>0)
+    if (mod === 0 && tt > 0) {
+      const minute = Math.floor(tt / 60);
+      if (minute <= 0) continue;
+
+      const icon = L.divIcon({
+        className: "sa-minute-label",
+        html: `<div style="
+          color:#FFFFFF;
+          font-size:11px;
+          font-weight:600;
+          line-height:11px;
+          text-shadow: 0 0 2px rgba(0,0,0,0.75), 0 0 4px rgba(0,0,0,0.55);
+          user-select:none;
+          pointer-events:none;
+          transform: translate(-50%, -50%);
+        ">${minute}</div>`,
+        iconSize: [0, 0],
+        iconAnchor: [0, 0],
+      });
+
+      const lab = L.marker([lat, lon], { icon, interactive: false });
+      lab.addTo(map);
+      created.push(lab);
+      continue;
+    }
+  }
+
+  timeMarksBySailor.set(sailor, created);
+}
+
+export async function refreshViewer() {
+  if (!map) return;
+
+  const raceId = state.raceId;
+  const sailors = Array.isArray(state.sailors) ? state.sailors : [];
+  const leg = state.leg; // "Total Race" or "1"/"2"/...
+
+  clearTracks();
+  trackLatLngsBySailor = new Map();
+
+  if (!raceId || sailors.length === 0) {
+    map.setView([0, 0], 2);
+    return;
+  }
+
+  let allLatLngs = [];
+
+  for (const sailor of sailors) {
+    let url = `/api/races/${encodeURIComponent(raceId)}/track?sailor=${encodeURIComponent(sailor)}`;
+
+    // Only append leg filter if a specific leg is selected
+    if (leg && leg !== "Total Race") {
+      url += `&leg=${encodeURIComponent(String(leg))}`;
+    }
+
+    // Backend returns: { sailor, color, points: [...] }
+    const payload = await apiGet(url);
+
+    if (!payload || typeof payload.color !== "string") {
+      throw new Error(`Track payload missing color for sailor=${sailor}`);
+    }
+    const color = payload.color;
+
+    const pts = payload.points;
+    if (!Array.isArray(pts) || pts.length === 0) continue;
+
+    // Build latlngs for the polyline
+    const latlngs = [];
+    for (const p of pts) {
+      const lat = Number(p.lat);
+      const lon = Number(p.lon);
+      if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
+      latlngs.push([lat, lon]);
+    }
+
+    if (latlngs.length === 0) continue;
+
+    // Store for label placement (crowding avoidance)
+    trackLatLngsBySailor.set(sailor, latlngs);
+
+    allLatLngs = allLatLngs.concat(latlngs);
+
+    // Draw polyline with roster color
+    const line = L.polyline(latlngs, { color, weight: 3, opacity: 0.9 });
+    line.addTo(map);
+    layersBySailor.set(sailor, line);
+
+    // Start marker with same color
+    const start = latlngs[0];
+    const m = L.circleMarker(start, {
+      radius: 4,
+      color,
+      opacity: 1.0,
+      fillColor: color,
+      fillOpacity: 0.8,
+      weight: 2,
+    });
+    m.addTo(map);
+    markerBySailor.set(sailor, m);
+
+    // Time markers (white dots at :30, white numbers at whole minutes)
+    addTimeMarkersForTrack(sailor, pts);
+  }
+
+  // Fit bounds to everything we drew
+  if (allLatLngs.length > 0) {
+    const bounds = L.latLngBounds(allLatLngs);
+    map.fitBounds(bounds, { padding: [20, 20] });
+  } else {
+    map.setView([0, 0], 2);
+  }
+
+  // ---- DRAW GEOMETRY LAST ----
+  const geometry = await loadGeometry(raceId);
+  renderGeometry(geometry, leg);
+}
+
+// --- Compatibility export: table -> viewer cursor sync ---
+let __sa_cursor_index = 0;
+
+/**
+ * Set the current cursor position by row index.
+ * Called by table scroll/selection code.
+ */
+export function setCursorByIndex(i) {
+  const n = Number(i);
+  __sa_cursor_index = Number.isFinite(n) ? n : 0;
+}
+
+/**
+ * Optional getter (useful for debugging / future wiring).
+ */
+export function getCursorIndex() {
+  return __sa_cursor_index;
+}

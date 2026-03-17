@@ -1,0 +1,5 @@
+race_id,date,race_number,fleet,venue,event,wind_dir_deg,wind_knots,sea_state,wind_type
+270226_R1_yellow,270226,1,yellow,vilamoura,GP,335,10,smooth,gradient
+270226_R2_yellow,270226,2,yellow,vilamoura,GP,355,8,smooth,gradient
+270226_R1_blue,270226,1,blue,vilamoura,GP,330,8,smooth,gradient
+270226_R2_blue,270226,2,blue,vilamoura,GP,352,8,smooth,gradient
