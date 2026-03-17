@@ -1,0 +1,3 @@
+leg_id,from_mark,to_mark,from_lat_deg,from_lon_deg,to_lat_deg,to_lon_deg,bearing_deg,leg_length_m,cumulative_length_m,to_is_gate,to_gate_s_lat_deg,to_gate_s_lon_deg,to_gate_p_lat_deg,to_gate_p_lon_deg
+1,Start,1,39.52892570007301,2.714819450582695,39.5209263,2.696874,240,1777.7159950234911,1777.7159950234911,0,,,,
+2,1,Finish,39.5209263,2.696874,39.5208720000101,2.696842149989152,204,6.627178248917783,1784.3431732724089,0,,,,

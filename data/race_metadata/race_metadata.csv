@@ -3,3 +3,9 @@ race_id,date,race_number,fleet,venue,event,wind_dir_deg,wind_knots,sea_state,win
 270226_R2_yellow,270226,2,yellow,vilamoura,GP,355,8,smooth,gradient
 270226_R1_blue,270226,1,blue,vilamoura,GP,330,8,smooth,gradient
 270226_R2_blue,270226,2,blue,vilamoura,GP,352,8,smooth,gradient
+170326_R1_yellow,170326,1,yellow,Palma,palma training,203,10,choppy,seabreeze
+170326_R2_yellow,170326,2,yellow,Palma,palma training,208,10,choppy,seabreeze
+170326_R3_yellow,170326,3,yellow,Palma,palma training,210,9,choppy,seabreeze
+170326_R4_yellow,170326,4,yellow,Palma,palma training,220,7,choppy,seabreeze
+170326_R5_yellow,170326,5,yellow,Palma,palma training,230,7,choppy,seabreeze
+170326_R6_yellow,170326,6,yellow,Palma,palma training,225,6,choopy,seabreeze
