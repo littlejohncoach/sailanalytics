@@ -1,19 +1,37 @@
+from __future__ import annotations
+
 from fastapi import APIRouter
 from pathlib import Path
 import csv
 
 router = APIRouter()
 
-# Project root
+# --------------------------------------------------
+# PATHS
+# --------------------------------------------------
 BASE_DIR = Path(__file__).resolve().parents[4]
-
-# Metadata file location
 META_FILE = BASE_DIR / "data" / "race_metadata" / "race_metadata.csv"
 
+# --------------------------------------------------
+# SCHEMA (LOCKED TO YOUR REAL FILE)
+# --------------------------------------------------
+FIELDNAMES = [
+    "race_id",
+    "date",
+    "race_number",
+    "fleet",
+    "venue",
+    "event",
+    "wind_dir_deg",
+    "wind_knots",
+    "sea_state",
+    "wind_type"
+]
 
-@router.get("/race_metadata")
-def get_metadata(race_id: str):
-
+# --------------------------------------------------
+# PURE FUNCTION
+# --------------------------------------------------
+def load_metadata(race_id: str) -> dict:
     if not META_FILE.exists():
         return {}
 
@@ -21,7 +39,14 @@ def get_metadata(race_id: str):
         reader = csv.DictReader(f)
 
         for row in reader:
-            if row.get("race_id") == race_id:
-                return row
+            if (row.get("race_id") or "").strip() == race_id:
+                return {k: row.get(k, "") for k in FIELDNAMES}
 
     return {}
+
+# --------------------------------------------------
+# API
+# --------------------------------------------------
+@router.get("/race_metadata")
+def get_metadata(race_id: str):
+    return load_metadata(race_id)
