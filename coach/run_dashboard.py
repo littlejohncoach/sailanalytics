@@ -90,9 +90,7 @@ def kill_port_listeners(port: int, timeout_s: float = 1.5) -> None:
 def load_asgi_app():
     """
     Load ASGI app from app/backend/app.py via package import.
-
-    Required because backend/app.py uses relative imports.
-    Prefers create_app() factory (your backend).
+    Prefers create_app() factory.
     """
     if str(COACH_DIR) not in sys.path:
         sys.path.insert(0, str(COACH_DIR))
@@ -111,19 +109,19 @@ def load_asgi_app():
 
 
 def open_browser_soon(url: str, delay_s: float = 0.8) -> None:
-    """Open a browser tab after a short delay so the server has time to bind."""
+    """Open a browser tab after a short delay."""
     def _go():
         try:
             webbrowser.open_new_tab(url)
         except Exception:
-            pass  # non-fatal
+            pass
 
     threading.Timer(delay_s, _go).start()
 
 
 def main() -> None:
-    # Make execution independent of where command is run from
-    os.chdir(str(COACH_DIR))
+    # ✅ FIXED: run from project root (NOT coach)
+    os.chdir(str(REPO_ROOT))
 
     # Kill old server BEFORE starting
     kill_port_listeners(PORT)
