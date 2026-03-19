@@ -11,9 +11,9 @@ race_id,date,race_number,fleet,venue,event,wind_dir_deg,wind_knots,sea_state,win
 170326_R6_yellow,170326,6,yellow,Palma,palma training,225,6,choppy,seabreeze
 180326_R1_yellow,180326,1,yellow,Palma,palma training,244,9,slight chop,seabreeze
 180326_R2_yellow,180326,2,yellow,Palma,palma training,220,9,slight chop,seabreeze
-180326_R3_yellow,180326,3,yellow,Palma,palma training,225,9,slight chop,seabreeze
-180326_R4_yellow,180326,4,yellow,Palma,palma training,220,8,slight chop,seabreeze
-180326_R5_yellow,180326,5,yellow,Palma,palma training,215,7,slight chop,seabreeze
+180326_R3_yellow,180326,3,yellow,Palma,palma training,210,9,slight chop,seabreeze
+180326_R4_yellow,180326,4,yellow,Palma,palma training,200,8,slight chop,seabreeze
+180326_R5_yellow,180326,5,yellow,Palma,palma training,195,7,slight chop,seabreeze
 180326_R6_yellow,180326,6,yellow,Palma,palma training,210,6,slight chop,seabreeze
 180326_R7_yellow,180326,7,yellow,Palma,palma training,205,6,slight chop,seabreeze
 180326_R8_yellow,180326,8,yellow,Palma,palma training,205,5,slight chop,seabreeze
