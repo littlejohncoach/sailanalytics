@@ -49,4 +49,5 @@ def load_metadata(race_id: str) -> dict:
 # --------------------------------------------------
 @router.get("/race_metadata")
 def get_metadata(race_id: str):
+    print("API RECEIVED:", repr(race_id))
     return load_metadata(race_id)
