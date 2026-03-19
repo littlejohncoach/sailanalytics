@@ -7,9 +7,9 @@ import csv
 router = APIRouter()
 
 # --------------------------------------------------
-# PATHS
+# PATHS (LOCKED — NO RELATIVE DRIFT)
 # --------------------------------------------------
-BASE_DIR = Path(__file__).resolve().parents[4]
+BASE_DIR = Path("/Users/marklittlejohn/Desktop/SailAnalytics")
 META_FILE = BASE_DIR / "data" / "race_metadata" / "race_metadata.csv"
 
 # --------------------------------------------------
@@ -33,15 +33,20 @@ FIELDNAMES = [
 # --------------------------------------------------
 def load_metadata(race_id: str) -> dict:
     if not META_FILE.exists():
+        print("METADATA FILE NOT FOUND:", META_FILE)
         return {}
 
     with open(META_FILE, newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f)
 
         for row in reader:
-            if (row.get("race_id") or "").strip() == race_id:
+            row_id = (row.get("race_id") or "").strip()
+
+            if row_id == race_id:
+                print("MATCH FOUND:", row_id)
                 return {k: row.get(k, "") for k in FIELDNAMES}
 
+    print("NO MATCH FOR:", race_id)
     return {}
 
 # --------------------------------------------------
