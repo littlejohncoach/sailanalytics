@@ -12,7 +12,7 @@ export function initTables() {
   container.innerHTML = `
     <h3 id="analyticsTitle">Analytics</h3>
     <div id="tableWrap">
-      <table id="analyticsTable">
+      <table id="dataTable">
         <thead></thead>
         <tbody></tbody>
       </table>
@@ -39,7 +39,7 @@ export async function refreshTables() {
 }
 
 // ------------------------------------------------------------
-// TOTAL (MATCHES YOUR GOOD TABLE STYLE)
+// TOTAL RACE
 // ------------------------------------------------------------
 
 async function renderTotal() {
@@ -47,8 +47,8 @@ async function renderTotal() {
     `/api/races/${encodeURIComponent(state.raceId)}/total_race_analytics`
   );
 
-  const thead = document.querySelector("#analyticsTable thead");
-  const tbody = document.querySelector("#analyticsTable tbody");
+  const thead = document.querySelector("#dataTable thead");
+  const tbody = document.querySelector("#dataTable tbody");
 
   if (!thead || !tbody) return;
 
@@ -77,9 +77,9 @@ async function renderTotal() {
 
     tr.innerHTML = `
       <td>${r.rank ?? i + 1}</td>
-      <td class="left">${r.sailor}</td>
+      <td class="left">${r.sailor ?? ""}</td>
       <td>${round(r.length_of_course_m)}</td>
-      <td>${r.time_sailed}</td>
+      <td>${r.time_sailed ?? ""}</td>
       <td>${round(r.distance_sailed_m)}</td>
       <td>${round(hr)}</td>
       <td>${round(r.avg_boat_speed_mpm)}</td>
@@ -91,7 +91,7 @@ async function renderTotal() {
 }
 
 // ------------------------------------------------------------
-// LEG (IDENTICAL STRUCTURE + HR INCLUDED)
+// LEG ANALYTICS
 // ------------------------------------------------------------
 
 async function renderLeg() {
@@ -101,8 +101,8 @@ async function renderLeg() {
 
   const rows = res?.rows || [];
 
-  const thead = document.querySelector("#analyticsTable thead");
-  const tbody = document.querySelector("#analyticsTable tbody");
+  const thead = document.querySelector("#dataTable thead");
+  const tbody = document.querySelector("#dataTable tbody");
 
   if (!thead || !tbody) return;
 
@@ -126,9 +126,9 @@ async function renderLeg() {
 
     tr.innerHTML = `
       <td>${r.rank ?? i + 1}</td>
-      <td class="left">${r.sailor}</td>
+      <td class="left">${r.sailor ?? ""}</td>
       <td>${round(r.length_of_leg_m)}</td>
-      <td>${r.time_sailed}</td>
+      <td>${r.time_sailed ?? ""}</td>
       <td>${round(r.distance_sailed_m)}</td>
       <td>${round(r.avg_heart_rate_bpm)}</td>
       <td>${round(r.avg_boat_speed_mpm)}</td>
