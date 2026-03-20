@@ -599,7 +599,7 @@ function renderGeometry(geometry, selectedLeg) {
   L.polyline([leg.from, leg.to], {
     color: "#777",
     weight: 2,
-    opacity: 0.6,
+    opacity: 0.8,
     dashArray: "4,8"
   }).addTo(geometryLayer);
 
