@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import List
 
 import pandas as pd
 from fastapi import APIRouter, HTTPException
@@ -60,7 +60,6 @@ def _geometry_path(race_id: str) -> Path:
 
 
 def _load_course_length_m(race_id: str) -> float:
-
     gpath = _geometry_path(race_id)
 
     if not gpath.exists():
@@ -86,7 +85,6 @@ def _totalrace_path(sailor: str, race_id: str) -> Path:
 
 
 def _list_sailors_for_race(race_id: str) -> List[str]:
-
     sailors = []
 
     pattern = f"_{race_id}.csv"
@@ -99,7 +97,6 @@ def _list_sailors_for_race(race_id: str) -> List[str]:
 
 
 def _load_finish_snapshot(path: Path):
-
     df = pd.read_csv(path)
 
     if "finished_flag" not in df.columns:
@@ -124,12 +121,12 @@ def _load_finish_snapshot(path: Path):
 
 @dataclass
 class TotalRaceRow:
-
     sailor: str
     time_sailed_s: float | None
     distance_sailed_m: float | None
     avg_boat_speed_mpm: float | None
     avg_course_speed_mpm: float | None
+    avg_heart_rate_bpm: float | None   # ✅ NEW
     efficiency_pct: float | None
     dnf: bool
 
@@ -142,16 +139,25 @@ def _compute_one(race_id: str, sailor: str, course_length_m: float) -> TotalRace
 
     path = _totalrace_path(sailor, race_id)
 
+    df = pd.read_csv(path)
+
     snapshot = _load_finish_snapshot(path)
 
-    if snapshot is None:
+    # --- HEART RATE ---
+    avg_hr = None
+    if "heart_rate" in df.columns:
+        hr_series = df["heart_rate"].dropna()
+        if not hr_series.empty:
+            avg_hr = float(hr_series.mean())
 
+    if snapshot is None:
         return TotalRaceRow(
             sailor=sailor,
             time_sailed_s=None,
             distance_sailed_m=None,
             avg_boat_speed_mpm=None,
             avg_course_speed_mpm=None,
+            avg_heart_rate_bpm=None,
             efficiency_pct=None,
             dnf=True,
         )
@@ -171,6 +177,7 @@ def _compute_one(race_id: str, sailor: str, course_length_m: float) -> TotalRace
         distance_sailed_m=dist_m,
         avg_boat_speed_mpm=boat_speed,
         avg_course_speed_mpm=course_speed,
+        avg_heart_rate_bpm=avg_hr,
         efficiency_pct=efficiency,
         dnf=False,
     )
@@ -181,7 +188,6 @@ def _compute_one(race_id: str, sailor: str, course_length_m: float) -> TotalRace
 # -------------------------------------------------
 
 @router.get("/races/{race_id}/total_race_analytics")
-
 def total_race_analytics(race_id: str):
 
     course_length_m = _load_course_length_m(race_id)
@@ -196,7 +202,6 @@ def total_race_analytics(race_id: str):
     for sailor in sailors:
         rows.append(_compute_one(race_id, sailor, course_length_m))
 
-    # split finishers / DNF
     finishers = [r for r in rows if not r.dnf]
     dnfs = [r for r in rows if r.dnf]
 
@@ -211,34 +216,30 @@ def total_race_analytics(race_id: str):
     for rank, r in enumerate(results, start=1):
 
         if r.dnf:
-
             out.append(
                 {
                     "rank": rank,
                     "sailor": r.sailor,
                     "length_of_course_m": int(round(course_length_m)),
                     "time_sailed": "DNF",
-                    "time_sailed_s": None,
                     "distance_sailed_m": "—",
+                    "avg_heart_rate_bpm": "—",   # ✅ NEW
                     "avg_boat_speed_mpm": "—",
                     "avg_course_speed_mpm": "—",
-                    "efficiency_pct": "—",
                 }
             )
-
             continue
 
         if rank == 1:
-
             time_disp = _fmt_mmss(r.time_sailed_s)
             dist_disp = int(round(r.distance_sailed_m))
+            hr_disp = int(round(r.avg_heart_rate_bpm)) if r.avg_heart_rate_bpm else "—"
             boat_disp = int(round(r.avg_boat_speed_mpm))
             course_disp = int(round(r.avg_course_speed_mpm))
-
         else:
-
             time_disp = _fmt_mmss_signed(r.time_sailed_s - winner.time_sailed_s)
             dist_disp = _fmt_int_signed(r.distance_sailed_m - winner.distance_sailed_m)
+            hr_disp = int(round(r.avg_heart_rate_bpm)) if r.avg_heart_rate_bpm else "—"
             boat_disp = _fmt_int_signed(r.avg_boat_speed_mpm - winner.avg_boat_speed_mpm)
             course_disp = _fmt_int_signed(r.avg_course_speed_mpm - winner.avg_course_speed_mpm)
 
@@ -248,11 +249,10 @@ def total_race_analytics(race_id: str):
                 "sailor": r.sailor,
                 "length_of_course_m": int(round(course_length_m)),
                 "time_sailed": time_disp,
-                "time_sailed_s": int(round(r.time_sailed_s)),
                 "distance_sailed_m": dist_disp,
+                "avg_heart_rate_bpm": hr_disp,   # ✅ NEW
                 "avg_boat_speed_mpm": boat_disp,
                 "avg_course_speed_mpm": course_disp,
-                "efficiency_pct": round(r.efficiency_pct, 1),
             }
         )
 
