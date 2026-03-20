@@ -102,13 +102,11 @@ function setAnalyticsTitle() {
       refreshTotalRaceAnalytics = getFn(total, ["refreshTotalRaceAnalytics"]);
     } catch {}
 
-    // Leg analytics (correct function)
+    // Leg analytics (ONLY the correct function — NO old system)
     let loadSliceAndRender = null;
     try {
       const legs = await import("./main_leg_analytics.js");
       loadSliceAndRender = getFn(legs, ["loadSliceAndRender"]);
-      const initLegs = getFn(legs, ["initLegAnalyticsSubsystem"]);
-      if (initLegs) initLegs();
     } catch {}
 
     const initViewer = getFn(viewer, ["initViewer"]);
@@ -127,6 +125,7 @@ function setAnalyticsTitle() {
       setAnalyticsTitle();
 
       if (refreshViewer) await refreshViewer();
+
       try {
         if (viewer?.refreshCourseGeometry) {
           viewer.refreshCourseGeometry(state.raceId);
