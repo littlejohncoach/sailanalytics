@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, Query
+import pandas as pd
 
 from ..loaders import (
     list_race_groups,
@@ -29,12 +30,16 @@ def api_track(
     sailor: str = Query(...),
     leg: str | None = Query(None),
 ):
+    # ---------------------------------------------------------
     # Validate race group
+    # ---------------------------------------------------------
     groups = list_race_groups()
     if group_id not in groups:
         raise HTTPException(status_code=404, detail=f"Race group not found: {group_id}")
 
+    # ---------------------------------------------------------
     # Validate sailor
+    # ---------------------------------------------------------
     sailor = (sailor or "").strip().lower()
     if not sailor:
         raise HTTPException(status_code=400, detail="Missing sailor")
@@ -44,12 +49,14 @@ def api_track(
     if sailor not in sailors_lc:
         raise HTTPException(status_code=404, detail=f"Sailor not in group: {sailor}")
 
-    # Resolve color (fixed by sailor id; no shifting)
-    color = _SAILOR_COLOR_HEX.get(sailor)
-    if not color:
-        color = "#111111"
+    # ---------------------------------------------------------
+    # Resolve color
+    # ---------------------------------------------------------
+    color = _SAILOR_COLOR_HEX.get(sailor, "#111111")
 
+    # ---------------------------------------------------------
     # Load data
+    # ---------------------------------------------------------
     df = load_group_df(group_id)
 
     # Filter to this sailor
@@ -62,16 +69,35 @@ def api_track(
     else:
         raise HTTPException(status_code=500, detail="No sailor column found in group dataframe")
 
-    # Build global time index since T0 BEFORE any leg slicing (1 Hz filled tapes)
-    if "timestamp_utc" in df.columns:
-        df = df.sort_values("timestamp_utc").reset_index(drop=True)
-    else:
-        # If timestamp_utc not present for some reason, keep deterministic order
-        df = df.reset_index(drop=True)
+    if df.empty:
+        return {
+            "race_id": group_id,
+            "sailor": sailor,
+            "color": color,
+            "leg": leg,
+            "points": [],
+            "track": [],
+        }
 
-    df["_t"] = range(len(df))  # global seconds since race start (T0 = first row)
+    # ---------------------------------------------------------
+    # TIME — REAL RACE TIME (FIXED)
+    # ---------------------------------------------------------
+    if "timestamp_utc" not in df.columns:
+        raise HTTPException(status_code=500, detail="timestamp_utc column required")
 
-    # Optional leg filter
+    # Parse + sort
+    df["timestamp_utc"] = pd.to_datetime(df["timestamp_utc"], utc=True, errors="coerce")
+    df = df.dropna(subset=["timestamp_utc"]).sort_values("timestamp_utc").reset_index(drop=True)
+
+    # Global T0 = first timestamp (already aligned by pipeline)
+    t0 = df["timestamp_utc"].iloc[0]
+
+    # TRUE race time in seconds
+    df["_t"] = (df["timestamp_utc"] - t0).dt.total_seconds().astype(int)
+
+    # ---------------------------------------------------------
+    # Optional leg filter (AFTER time is defined)
+    # ---------------------------------------------------------
     if leg and str(leg).lower() not in ("total", "total race", "total_race"):
         leg_col = None
         for c in ("leg", "leg_no", "leg_index", "geom_leg_id", "leg_id", "leg_instance_id"):
@@ -80,7 +106,6 @@ def api_track(
                 break
 
         if leg_col is None:
-            # viewer-safe response
             return {
                 "race_id": group_id,
                 "sailor": sailor,
@@ -107,13 +132,17 @@ def api_track(
             "track": [],
         }
 
+    # ---------------------------------------------------------
     # Resolve latitude / longitude
+    # ---------------------------------------------------------
     lat_col = None
     lon_col = None
+
     for c in ("latitude", "lat", "latitude_deg"):
         if c in df.columns:
             lat_col = c
             break
+
     for c in ("longitude", "lon", "longitude_deg"):
         if c in df.columns:
             lon_col = c
@@ -122,19 +151,23 @@ def api_track(
     if not lat_col or not lon_col:
         raise HTTPException(status_code=500, detail="Latitude/Longitude columns not found")
 
-    # Include global time index `_t` in every point
+    # ---------------------------------------------------------
+    # Build points (WITH TRUE TIME)
+    # ---------------------------------------------------------
     pts = [
         {"lat": float(r[lat_col]), "lon": float(r[lon_col]), "t": int(r["_t"])}
         for _, r in df.iterrows()
         if r[lat_col] == r[lat_col] and r[lon_col] == r[lon_col]
     ]
 
-    # IMPORTANT: return BOTH keys to keep compatibility with any newer code
+    # ---------------------------------------------------------
+    # Return
+    # ---------------------------------------------------------
     return {
         "race_id": group_id,
         "sailor": sailor,
         "color": color,
         "leg": leg,
-        "points": pts,  # viewer_leaflet.js expects this
-        "track": pts,   # keep your newer naming too
+        "points": pts,
+        "track": pts,
     }
