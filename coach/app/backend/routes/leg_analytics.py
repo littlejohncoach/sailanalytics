@@ -1,234 +1,180 @@
+# coach/app/backend/routes/leg_analytics.py
 from __future__ import annotations
 
-from dataclasses import dataclass
 from pathlib import Path
-from typing import List
+from typing import List, Dict, Any, Optional, Tuple
 
-import pandas as pd
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Query, HTTPException
 
-router = APIRouter()
+from ..LegAnalytics import compute_leg_analytics
 
-
-# -------------------------------------------------
-# Paths
-# -------------------------------------------------
-
-SAILANALYTICS_ROOT = Path(__file__).resolve().parents[4]
-
-DATA_DIR = SAILANALYTICS_ROOT / "data"
-TOTALRACES_DIR = DATA_DIR / "totalraces"
-GEOMETRY_DIR = DATA_DIR / "geometry"
+router = APIRouter(tags=["analytics"])
 
 
-# -------------------------------------------------
-# Helpers
-# -------------------------------------------------
+def _list_sailors_for_race_from_totalraces(project_root: Path, race_id: str) -> List[str]:
+    """
+    Deterministic discovery from:
+      data/totalraces/<sailor>_<race_id>.csv
+    """
+    totalraces_dir = project_root / "data" / "totalraces"
+    if not totalraces_dir.exists():
+        return []
 
-def _fmt_mmss(seconds: float) -> str:
-    sec = int(round(seconds))
-    m = sec // 60
-    s = sec % 60
+    suffix = f"_{race_id}.csv"
+    sailors: List[str] = []
+    for p in totalraces_dir.glob(f"*{suffix}"):
+        name = p.name
+        sailor = name[: -len(suffix)]
+        if sailor:
+            sailors.append(sailor)
+
+    return sorted(set(sailors))
+
+
+def _parse_mmss_to_seconds(mmss: str) -> Optional[int]:
+    """
+    Parse 'M:SS' into total seconds (int). Returns None on failure.
+    """
+    try:
+        t = (mmss or "").strip()
+        if ":" not in t:
+            return None
+        m_str, s_str = t.split(":", 1)
+        m = int(m_str)
+        s = int(s_str)
+        if m < 0 or s < 0 or s >= 60:
+            return None
+        return m * 60 + s
+    except Exception:
+        return None
+
+
+def _fmt_mmss(seconds: int) -> str:
+    m = seconds // 60
+    s = seconds % 60
     return f"{m}:{s:02d}"
 
 
-def _fmt_mmss_signed(delta_s: float) -> str:
+def _fmt_mmss_signed(delta_s: Optional[int]) -> str:
+    """
+    Signed delta seconds -> '+M:SS' / '-M:SS' / '0:00' / '—'
+    """
+    if delta_s is None:
+        return "—"
     if delta_s == 0:
         return "0:00"
-
     sign = "+" if delta_s > 0 else "-"
-    sec = int(round(abs(delta_s)))
+    sec = abs(int(delta_s))
     m = sec // 60
     s = sec % 60
-
     return f"{sign}{m}:{s:02d}"
 
 
-def _fmt_int_signed(delta: float) -> str:
-    val = int(round(delta))
+def _fmt_int_signed(delta: Optional[float]) -> str:
+    """
+    Signed numeric delta -> '+N' / '-N' / '0' / '—'
+    """
+    if delta is None:
+        return "—"
+    val = int(round(float(delta)))
     if val > 0:
         return f"+{val}"
     return str(val)
 
 
-# -------------------------------------------------
-# Geometry (leg lengths)
-# -------------------------------------------------
+@router.get("/leg_analytics")
+def leg_analytics(
+    race_id: str = Query(..., description="e.g. 301125_R1_yellow"),
+    leg: str = Query(..., description='geom_leg_id as "1".."6"'),
+) -> Dict[str, Any]:
+    # .../SailAnalytics/coach/app/backend/routes/leg_analytics.py -> parents[4] == .../SailAnalytics
+    project_root = Path(__file__).resolve().parents[4]
 
-def _geometry_path(race_id: str) -> Path:
-    return GEOMETRY_DIR / f"geometry_{race_id}.csv"
+    # Enforce: leg is integer geom_leg_id
+    lv = (leg or "").strip()
+    try:
+        geom_leg_id = int(lv)
+    except Exception:
+        raise HTTPException(status_code=400, detail=f"Invalid leg='{leg}'. Must be integer geom_leg_id 1..6")
 
-
-def _load_leg_length_m(race_id: str, leg_id: int) -> float:
-    gpath = _geometry_path(race_id)
-
-    if not gpath.exists():
-        raise FileNotFoundError(f"Missing geometry file {gpath}")
-
-    gdf = pd.read_csv(gpath)
-
-    if "leg_id" not in gdf.columns:
-        raise ValueError("Geometry missing leg_id")
-
-    leg = gdf[gdf["leg_id"] == leg_id]
-
-    if leg.empty:
-        raise ValueError(f"No geometry for leg {leg_id}")
-
-    if "leg_length_m" in leg.columns:
-        return float(leg.iloc[0]["leg_length_m"])
-
-    if "cumulative_length_m" in gdf.columns:
-        return float(leg["cumulative_length_m"].max() - leg["cumulative_length_m"].min())
-
-    raise ValueError("Geometry missing leg length")
-
-
-# -------------------------------------------------
-# Data structure
-# -------------------------------------------------
-
-@dataclass
-class LegRow:
-    sailor: str
-    time_sailed_s: float | None
-    distance_sailed_m: float | None
-    avg_boat_speed_mpm: float | None
-    avg_course_speed_mpm: float | None
-    avg_heart_rate_bpm: float | None
-    dnf: bool
-
-
-# -------------------------------------------------
-# Compute one sailor / one leg
-# -------------------------------------------------
-
-def _compute_leg(race_id: str, sailor: str, leg_id: int, leg_length_m: float) -> LegRow:
-
-    path = TOTALRACES_DIR / f"{sailor}_{race_id}.csv"
-
-    df = pd.read_csv(path)
-
-    # --- FILTER LEG ---
-    leg_df = df[df["geom_leg_id"] == leg_id]
-
-    if leg_df.empty:
-        return LegRow(
-            sailor=sailor,
-            time_sailed_s=None,
-            distance_sailed_m=None,
-            avg_boat_speed_mpm=None,
-            avg_course_speed_mpm=None,
-            avg_heart_rate_bpm=None,
-            dnf=True,
+    sailors = _list_sailors_for_race_from_totalraces(project_root, race_id)
+    if not sailors:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No sailors found in data/totalraces for race_id={race_id}",
         )
 
-    # --- TIME ---
-    t0 = leg_df.iloc[0]["elapsed_race_time_s"]
-    t1 = leg_df.iloc[-1]["elapsed_race_time_s"]
-    time_s = float(t1 - t0)
-
-    # --- DISTANCE ---
-    d0 = leg_df.iloc[0]["dist_from_start_m"]
-    d1 = leg_df.iloc[-1]["dist_from_start_m"]
-    dist_m = float(d1 - d0)
-
-    minutes = time_s / 60 if time_s else 0
-
-    # --- SPEEDS ---
-    boat_speed = dist_m / minutes if minutes else 0
-    course_speed = leg_length_m / minutes if minutes else 0
-
-    # --- HEART RATE ---
-    avg_hr = None
-    if "heart_rate" in leg_df.columns:
-        hr_series = leg_df["heart_rate"].dropna()
-        if not hr_series.empty:
-            avg_hr = float(hr_series.mean())
-
-    return LegRow(
-        sailor=sailor,
-        time_sailed_s=time_s,
-        distance_sailed_m=dist_m,
-        avg_boat_speed_mpm=boat_speed,
-        avg_course_speed_mpm=course_speed,
-        avg_heart_rate_bpm=avg_hr,
-        dnf=False,
+    rows = compute_leg_analytics(
+        project_root=project_root,
+        race_id=race_id,
+        leg_value=str(geom_leg_id),
+        sailors=sailors,
     )
 
+    # If backend returns nothing, keep shape stable
+    if not rows:
+        return {"race_id": race_id, "leg": str(geom_leg_id), "rows": []}
 
-# -------------------------------------------------
-# API
-# -------------------------------------------------
+    # Winner baselines (rank 1 row)
+    winner = rows[0]
 
-@router.get("/leg_analytics")
-def leg_analytics(race_id: str, leg: int):
+    winner_time_s: Optional[int] = _parse_mmss_to_seconds(getattr(winner, "time_sailed_str", "") or "")
+    winner_dist_m = getattr(winner, "distance_sailed_m", None)
+    winner_boat_mpm = getattr(winner, "avg_boat_speed_mpm", None)
+    winner_course_mpm = getattr(winner, "avg_course_speed_mpm", None)
 
-    leg_id = int(leg)
+    out_rows: List[Dict[str, Any]] = []
 
-    leg_length_m = _load_leg_length_m(race_id, leg_id)
+    for idx, r in enumerate(rows, start=1):
+        # Always absolute fields (all ranks)
+        length_leg_m = None if r.length_leg_m is None else int(round(float(r.length_leg_m)))
+        avg_hr_bpm = None if r.avg_hr_bpm is None else int(round(float(r.avg_hr_bpm)))
+        eff_pct = None if r.efficiency_pct is None else round(float(r.efficiency_pct), 1)
 
-    sailors = sorted({
-        p.name.split("_")[0]
-        for p in TOTALRACES_DIR.glob(f"*_{race_id}.csv")
-    })
-
-    if not sailors:
-        raise HTTPException(404, "No sailors found")
-
-    rows = []
-
-    for sailor in sailors:
-        rows.append(_compute_leg(race_id, sailor, leg_id, leg_length_m))
-
-    finishers = [r for r in rows if not r.dnf]
-    dnfs = [r for r in rows if r.dnf]
-
-    finishers.sort(key=lambda r: r.time_sailed_s)
-
-    results = finishers + dnfs
-
-    out = []
-
-    winner = finishers[0] if finishers else None
-
-    for rank, r in enumerate(results, start=1):
-
-        if r.dnf:
-            out.append({
-                "rank": rank,
-                "sailor": r.sailor,
-                "length_of_leg_m": int(round(leg_length_m)),
-                "time_sailed": "DNF",
-                "distance_sailed_m": "—",
-                "avg_heart_rate_bpm": "—",
-                "avg_boat_speed_mpm": "—",
-                "avg_course_speed_mpm": "—",
-            })
-            continue
-
-        if rank == 1:
-            time_disp = _fmt_mmss(r.time_sailed_s)
-            dist_disp = int(round(r.distance_sailed_m))
-            hr_disp = int(round(r.avg_heart_rate_bpm)) if r.avg_heart_rate_bpm else "—"
-            boat_disp = int(round(r.avg_boat_speed_mpm))
-            course_disp = int(round(r.avg_course_speed_mpm))
+        # Display fields: winner absolute, others deltas (like Total Race)
+        if idx == 1:
+            # Winner: absolute
+            time_disp = (
+                _fmt_mmss(winner_time_s) if winner_time_s is not None else (getattr(r, "time_sailed_str", "") or "—")
+            )
+            dist_disp: Any = None if r.distance_sailed_m is None else int(round(float(r.distance_sailed_m)))
+            boat_disp: Any = None if r.avg_boat_speed_mpm is None else int(round(float(r.avg_boat_speed_mpm)))
+            course_disp: Any = None if r.avg_course_speed_mpm is None else int(round(float(r.avg_course_speed_mpm)))
         else:
-            time_disp = _fmt_mmss_signed(r.time_sailed_s - winner.time_sailed_s)
-            dist_disp = _fmt_int_signed(r.distance_sailed_m - winner.distance_sailed_m)
-            hr_disp = int(round(r.avg_heart_rate_bpm)) if r.avg_heart_rate_bpm else "—"
-            boat_disp = _fmt_int_signed(r.avg_boat_speed_mpm - winner.avg_boat_speed_mpm)
-            course_disp = _fmt_int_signed(r.avg_course_speed_mpm - winner.avg_course_speed_mpm)
+            # Others: deltas vs winner
+            r_time_s = _parse_mmss_to_seconds(getattr(r, "time_sailed_str", "") or "")
+            time_disp = _fmt_mmss_signed((r_time_s - winner_time_s) if (r_time_s is not None and winner_time_s is not None) else None)
 
-        out.append({
-            "rank": rank,
-            "sailor": r.sailor,
-            "length_of_leg_m": int(round(leg_length_m)),
-            "time_sailed": time_disp,
-            "distance_sailed_m": dist_disp,
-            "avg_heart_rate_bpm": hr_disp,
-            "avg_boat_speed_mpm": boat_disp,
-            "avg_course_speed_mpm": course_disp,
-        })
+            dist_disp = _fmt_int_signed(
+                (r.distance_sailed_m - winner_dist_m) if (r.distance_sailed_m is not None and winner_dist_m is not None) else None
+            )
+            boat_disp = _fmt_int_signed(
+                (r.avg_boat_speed_mpm - winner_boat_mpm) if (r.avg_boat_speed_mpm is not None and winner_boat_mpm is not None) else None
+            )
+            course_disp = _fmt_int_signed(
+                (r.avg_course_speed_mpm - winner_course_mpm) if (r.avg_course_speed_mpm is not None and winner_course_mpm is not None) else None
+            )
 
-    return {"rows": out}
+        out_rows.append(
+            {
+                "rank": r.rank,
+                "sailor": r.sailor,
+
+                # absolute for all
+                "length_leg_m": length_leg_m,
+                "avg_hr_bpm": avg_hr_bpm,
+                "efficiency_pct": eff_pct,
+
+                # winner absolute / others deltas
+                "time_sailed": time_disp,
+                "distance_sailed_m": dist_disp,
+                "avg_boat_speed_mpm": boat_disp,
+                "avg_course_speed_mpm": course_disp,
+            }
+        )
+
+    return {
+        "race_id": race_id,
+        "leg": str(geom_leg_id),
+        "rows": out_rows,
+    }
