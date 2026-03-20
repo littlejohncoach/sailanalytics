@@ -1,5 +1,3 @@
-// coach/app/frontend/ui_tables.js
-
 import { apiGet } from "./api_client.js";
 import { state } from "./state.js";
 
@@ -23,7 +21,7 @@ export function initTables() {
 }
 
 // ------------------------------------------------------------
-// MAIN REFRESH
+// REFRESH
 // ------------------------------------------------------------
 
 export async function refreshTables() {
@@ -33,18 +31,18 @@ export async function refreshTables() {
 
   if (!leg || leg === "" || leg === "Total Race") {
     setTitle("Total Race Analytics");
-    await renderTotalRace();
+    await renderTotal();
   } else {
     setTitle(`Analytics — Leg ${leg}`);
-    await renderLegAnalytics();
+    await renderLeg();
   }
 }
 
 // ------------------------------------------------------------
-// TOTAL RACE
+// TOTAL (MATCHES YOUR GOOD TABLE STYLE)
 // ------------------------------------------------------------
 
-async function renderTotalRace() {
+async function renderTotal() {
   const data = await apiGet(
     `/api/races/${encodeURIComponent(state.raceId)}/total_race_analytics`
   );
@@ -57,13 +55,13 @@ async function renderTotalRace() {
   thead.innerHTML = `
     <tr>
       <th>Rank</th>
-      <th style="text-align:left">Sailor</th>
-      <th>Length (m)</th>
-      <th>Time</th>
-      <th>Distance (m)</th>
-      <th>HR (bpm)</th>
-      <th>Boat (m/min)</th>
-      <th>Course (m/min)</th>
+      <th>Sailor</th>
+      <th>Length of course (m)</th>
+      <th>Time sailed</th>
+      <th>Distance sailed (m)</th>
+      <th>Avg heart rate (bpm)</th>
+      <th>Average boat speed (m/min)</th>
+      <th>Average course speed (m/min)</th>
     </tr>
   `;
 
@@ -79,7 +77,7 @@ async function renderTotalRace() {
 
     tr.innerHTML = `
       <td>${r.rank ?? i + 1}</td>
-      <td style="text-align:left">${r.sailor}</td>
+      <td class="left">${r.sailor}</td>
       <td>${round(r.length_of_course_m)}</td>
       <td>${r.time_sailed}</td>
       <td>${round(r.distance_sailed_m)}</td>
@@ -93,36 +91,31 @@ async function renderTotalRace() {
 }
 
 // ------------------------------------------------------------
-// LEG ANALYTICS (CORRECT SOURCE)
+// LEG (IDENTICAL STRUCTURE + HR INCLUDED)
 // ------------------------------------------------------------
 
-async function renderLegAnalytics() {
+async function renderLeg() {
+  const res = await apiGet(
+    `/api/leg_analytics?race_id=${encodeURIComponent(state.raceId)}&leg=${encodeURIComponent(state.leg)}`
+  );
+
+  const rows = res?.rows || [];
+
   const thead = document.querySelector("#analyticsTable thead");
   const tbody = document.querySelector("#analyticsTable tbody");
 
   if (!thead || !tbody) return;
 
-  const data = await apiGet(
-    `/api/leg_analytics?race_id=${encodeURIComponent(state.raceId)}&leg=${encodeURIComponent(state.leg)}`
-  );
-
-  const rows = data?.rows || [];
-
-  if (!rows.length) {
-    tbody.innerHTML = "<tr><td colspan='8'>No data</td></tr>";
-    return;
-  }
-
   thead.innerHTML = `
     <tr>
       <th>Rank</th>
-      <th style="text-align:left">Sailor</th>
-      <th>Length (m)</th>
-      <th>Time</th>
-      <th>Distance (m)</th>
-      <th>HR (bpm)</th>
-      <th>Boat (m/min)</th>
-      <th>Course (m/min)</th>
+      <th>Sailor</th>
+      <th>Length of leg (m)</th>
+      <th>Time sailed</th>
+      <th>Distance sailed (m)</th>
+      <th>Avg heart rate (bpm)</th>
+      <th>Average boat speed (m/min)</th>
+      <th>Average course speed (m/min)</th>
     </tr>
   `;
 
@@ -133,7 +126,7 @@ async function renderLegAnalytics() {
 
     tr.innerHTML = `
       <td>${r.rank ?? i + 1}</td>
-      <td style="text-align:left">${r.sailor}</td>
+      <td class="left">${r.sailor}</td>
       <td>${round(r.length_of_leg_m)}</td>
       <td>${r.time_sailed}</td>
       <td>${round(r.distance_sailed_m)}</td>
