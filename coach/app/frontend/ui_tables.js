@@ -4,7 +4,7 @@ import { apiGet } from "./api_client.js";
 import { state } from "./state.js";
 
 // ------------------------------------------------------------
-// INIT (single box only)
+// INIT
 // ------------------------------------------------------------
 
 export function initTables() {
@@ -23,23 +23,25 @@ export function initTables() {
 }
 
 // ------------------------------------------------------------
-// REFRESH ENTRY POINT
+// MAIN REFRESH
 // ------------------------------------------------------------
 
 export async function refreshTables() {
   if (!state.raceId) return;
 
-  const leg = String(state.leg || "").toLowerCase();
+  const leg = state.leg;
 
-  if (!leg || leg.includes("total")) {
+  if (!leg || leg === "" || leg === "Total Race") {
+    setTitle("Total Race Analytics");
     await renderTotalRace();
   } else {
+    setTitle(`Analytics — Leg ${leg}`);
     await renderLegAnalytics();
   }
 }
 
 // ------------------------------------------------------------
-// TOTAL RACE (WITH HR, NO EFFICIENCY)
+// TOTAL RACE
 // ------------------------------------------------------------
 
 async function renderTotalRace() {
@@ -52,39 +54,38 @@ async function renderTotalRace() {
 
   if (!thead || !tbody) return;
 
-  // HEADER (clean + aligned)
   thead.innerHTML = `
     <tr>
       <th>Rank</th>
-      <th>Sailor</th>
-      <th>Length of course (m)</th>
-      <th>Time sailed</th>
-      <th>Distance sailed (m)</th>
-      <th>Avg heart rate (bpm)</th>
-      <th>Average boat speed (m/min)</th>
-      <th>Average course speed (m/min)</th>
+      <th style="text-align:left">Sailor</th>
+      <th>Length (m)</th>
+      <th>Time</th>
+      <th>Distance (m)</th>
+      <th>HR (bpm)</th>
+      <th>Boat (m/min)</th>
+      <th>Course (m/min)</th>
     </tr>
   `;
 
   tbody.innerHTML = "";
 
-  data.forEach((row, idx) => {
+  data.forEach((r, i) => {
     const tr = document.createElement("tr");
 
     const hr =
-      row.avg_heart_rate_bpm ??
-      row.avg_hr_bpm ??
+      r.avg_heart_rate_bpm ??
+      r.avg_hr_bpm ??
       "—";
 
     tr.innerHTML = `
-      <td>${row.rank ?? idx + 1}</td>
-      <td style="text-align:left">${row.sailor ?? ""}</td>
-      <td>${round(row.length_of_course_m)}</td>
-      <td>${row.time_sailed ?? ""}</td>
-      <td>${round(row.distance_sailed_m)}</td>
+      <td>${r.rank ?? i + 1}</td>
+      <td style="text-align:left">${r.sailor}</td>
+      <td>${round(r.length_of_course_m)}</td>
+      <td>${r.time_sailed}</td>
+      <td>${round(r.distance_sailed_m)}</td>
       <td>${round(hr)}</td>
-      <td>${round(row.avg_boat_speed_mpm)}</td>
-      <td>${round(row.avg_course_speed_mpm)}</td>
+      <td>${round(r.avg_boat_speed_mpm)}</td>
+      <td>${round(r.avg_course_speed_mpm)}</td>
     `;
 
     tbody.appendChild(tr);
@@ -92,7 +93,7 @@ async function renderTotalRace() {
 }
 
 // ------------------------------------------------------------
-// LEG ANALYTICS (WITH HR, NO EFFICIENCY)
+// LEG ANALYTICS (CORRECT SOURCE)
 // ------------------------------------------------------------
 
 async function renderLegAnalytics() {
@@ -101,51 +102,44 @@ async function renderLegAnalytics() {
 
   if (!thead || !tbody) return;
 
-  const sailorsParam = state.sailors?.length
-    ? `&sailors=${encodeURIComponent(state.sailors.join(","))}`
-    : "";
-
-  const legParam = state.leg
-    ? `&leg=${encodeURIComponent(state.leg)}`
-    : "";
-
-  const rows = await apiGet(
-    `/api/races/${encodeURIComponent(state.raceId)}/slice?max_rows=5000${sailorsParam}${legParam}`
+  const data = await apiGet(
+    `/api/leg_analytics?race_id=${encodeURIComponent(state.raceId)}&leg=${encodeURIComponent(state.leg)}`
   );
 
-  if (!rows || !rows.length) {
-    tbody.innerHTML = "";
+  const rows = data?.rows || [];
+
+  if (!rows.length) {
+    tbody.innerHTML = "<tr><td colspan='8'>No data</td></tr>";
     return;
   }
 
-  // HEADER
   thead.innerHTML = `
     <tr>
+      <th>Rank</th>
+      <th style="text-align:left">Sailor</th>
+      <th>Length (m)</th>
       <th>Time</th>
-      <th>Sailor</th>
-      <th>Leg</th>
-      <th>PTM</th>
-      <th>SOG</th>
-      <th>HR</th>
-      <th>ATB</th>
+      <th>Distance (m)</th>
+      <th>HR (bpm)</th>
+      <th>Boat (m/min)</th>
+      <th>Course (m/min)</th>
     </tr>
   `;
 
-  const tKey = rows[0].t !== undefined ? "t" : "t_idx";
-
   tbody.innerHTML = "";
 
-  rows.forEach((r) => {
+  rows.forEach((r, i) => {
     const tr = document.createElement("tr");
 
     tr.innerHTML = `
-      <td>${r[tKey] ?? ""}</td>
-      <td style="text-align:left">${r.sailor ?? ""}</td>
-      <td>${r.leg ?? ""}</td>
-      <td>${r.ptm ?? ""}</td>
-      <td>${r.sog ?? ""}</td>
-      <td>${r.hr ?? ""}</td>
-      <td>${r.atb ?? ""}</td>
+      <td>${r.rank ?? i + 1}</td>
+      <td style="text-align:left">${r.sailor}</td>
+      <td>${round(r.length_of_leg_m)}</td>
+      <td>${r.time_sailed}</td>
+      <td>${round(r.distance_sailed_m)}</td>
+      <td>${round(r.avg_heart_rate_bpm)}</td>
+      <td>${round(r.avg_boat_speed_mpm)}</td>
+      <td>${round(r.avg_course_speed_mpm)}</td>
     `;
 
     tbody.appendChild(tr);
@@ -155,6 +149,11 @@ async function renderLegAnalytics() {
 // ------------------------------------------------------------
 // HELPERS
 // ------------------------------------------------------------
+
+function setTitle(txt) {
+  const el = document.getElementById("analyticsTitle");
+  if (el) el.textContent = txt;
+}
 
 function round(v) {
   const n = Number(v);
