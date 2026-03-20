@@ -792,7 +792,7 @@ async function drawCourseGeometry(map, raceId){
   color: "#a6c8ff",
   dashArray: "6,8", 
   weight: 2, 
-  opacity: 0.5 
+  opacity: 0.9 
 }).addTo(_courseLayer);
 
     try {
