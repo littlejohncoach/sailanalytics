@@ -7,16 +7,18 @@
 
   <link rel="stylesheet" href="/static/styles.css" />
 
-  <!-- Leaflet (CDN) for track viewer -->
+  <!-- Leaflet (CDN) -->
   <link
     rel="stylesheet"
     href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
     crossorigin=""
   />
 </head>
+
 <body>
   <div id="app">
+
+    <!-- SIDEBAR -->
     <aside id="sidebar">
       <h2>Controls</h2>
 
@@ -26,7 +28,6 @@
       </select>
 
       <label>Sailors</label>
-      <!-- MULTI-SELECT: shows all sailors and allows selecting 1..N -->
       <select id="sailorSelect" multiple size="6"></select>
 
       <label>Leg</label>
@@ -39,23 +40,25 @@
       <div class="small" id="status"></div>
     </aside>
 
+    <!-- MAIN -->
     <main id="main">
+
       <header id="header">
         <h1>Coach Dashboard</h1>
         <div id="meta"></div>
       </header>
 
+      <!-- TRACK VIEWER -->
       <section id="viewerSection">
         <h3>Track Viewer</h3>
         <div id="map"></div>
 
-        <!-- Player controls (bottom-left) -->
         <div id="playerControls" class="player-controls" style="display:none;">
           <div class="player-row">
-            <button id="btnPlay" type="button" title="Play / Pause">▶︎</button>
-            <button id="btnStepBack" type="button" title="Back">⟵</button>
-            <button id="btnStepFwd" type="button" title="Forward">⟶</button>
-            <button id="btnFullscreen" type="button" title="Fullscreen">⛶</button>
+            <button id="btnPlay">▶︎</button>
+            <button id="btnStepBack">⟵</button>
+            <button id="btnStepFwd">⟶</button>
+            <button id="btnFullscreen">⛶</button>
           </div>
 
           <div class="player-meta">
@@ -70,59 +73,31 @@
           </div>
         </div>
 
-        <div class="small" id="viewerHint">Scroll the table below to move the cursor.</div>
-      </section>
-
-      <!-- Total Race Analytics (permanent; shows all sailors for the race) -->
-      <section id="totalRaceSection">
-        <h3>Total Race Analytics</h3>
-        <div id="totalRaceWrap">
-          <table id="totalRaceTable">
-            <thead>
-              <tr>
-                <th>Rank</th>
-                <th>Sailor</th>
-                <th>Length of course (m)</th>
-                <th>Time sailed</th>
-                <th>Distance sailed (m)</th>
-                <th>Average boat speed (m/min)</th>
-                <th>Average course speed (m/min)</th>
-                <th>Efficiency (%)</th>
-              </tr>
-            </thead>
-            <tbody></tbody>
-          </table>
+        <div class="small" id="viewerHint">
+          Scroll the table below to move the cursor.
         </div>
       </section>
 
+      <!-- SINGLE ANALYTICS BOX -->
       <section id="tableSection">
-        <h3>Analytics</h3>
+        <h3 id="analyticsTitle">Analytics</h3>
+
         <div id="tableWrap">
           <table id="dataTable">
-            <thead>
-              <tr>
-                <th>Rank</th>
-                <th>Sailor</th>
-                <th>Length of leg (m)</th>
-                <th>Time sailed</th>
-                <th>Distance sailed (m)</th>
-                <th>Avg heart rate (bpm)</th>
-                <th>Average boat speed (m/min)</th>
-                <th>Average course speed (m/min)</th>
-                <th>Efficiency (%)</th>
-              </tr>
-            </thead>
+            <thead></thead>
             <tbody></tbody>
           </table>
         </div>
       </section>
+
     </main>
   </div>
 
+  <!-- Leaflet -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-          integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
           crossorigin=""></script>
 
+  <!-- Main app -->
   <script type="module" src="/static/main.js"></script>
 </body>
 </html>
