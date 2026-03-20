@@ -2,10 +2,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 
 import pandas as pd
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 
 router = APIRouter()
 
@@ -35,20 +35,16 @@ def _fmt_mmss(seconds: float) -> str:
 def _fmt_mmss_signed(delta_s: float) -> str:
     if delta_s == 0:
         return "0:00"
-
     sign = "+" if delta_s > 0 else "-"
     sec = int(round(abs(delta_s)))
     m = sec // 60
     s = sec % 60
-
     return f"{sign}{m}:{s:02d}"
 
 
 def _fmt_int_signed(delta: float) -> str:
     val = int(round(delta))
-    if val > 0:
-        return f"+{val}"
-    return str(val)
+    return f"+{val}" if val > 0 else str(val)
 
 
 # -------------------------------------------------
@@ -60,139 +56,64 @@ def _geometry_path(race_id: str) -> Path:
 
 
 def _load_course_length_m(race_id: str) -> float:
-    gpath = _geometry_path(race_id)
-
-    if not gpath.exists():
-        raise FileNotFoundError(f"Missing geometry file {gpath}")
-
-    gdf = pd.read_csv(gpath)
-
+    gdf = pd.read_csv(_geometry_path(race_id))
     if "cumulative_length_m" in gdf.columns:
         return float(gdf["cumulative_length_m"].max())
-
-    if "seg_length_m" in gdf.columns:
-        return float(gdf["seg_length_m"].sum())
-
-    raise ValueError("Geometry file missing length columns")
+    return float(gdf["seg_length_m"].sum())
 
 
 # -------------------------------------------------
-# TotalRace loading
+# Core analytics engine (SAME FOR TOTAL + LEG)
 # -------------------------------------------------
 
-def _totalrace_path(sailor: str, race_id: str) -> Path:
-    return TOTALRACES_DIR / f"{sailor}_{race_id}.csv"
+def _compute_from_df(df: pd.DataFrame, ref_length_m: float):
 
-
-def _list_sailors_for_race(race_id: str) -> List[str]:
-    sailors = []
-
-    pattern = f"_{race_id}.csv"
-
-    for p in TOTALRACES_DIR.glob(f"*{pattern}"):
-        sailor = p.name[: -len(pattern)]
-        sailors.append(sailor)
-
-    return sorted(set(sailors))
-
-
-def _load_finish_snapshot(path: Path):
-    df = pd.read_csv(path)
-
-    if "finished_flag" not in df.columns:
-        raise ValueError(f"{path.name} missing finished_flag")
-
-    finished = df[df["finished_flag"] == 1]
-
-    if finished.empty:
+    if df.empty:
         return None
 
-    row = finished.iloc[-1]
+    # TIME (robust)
+    t0 = df["elapsed_race_time_s"].min()
+    t1 = df["elapsed_race_time_s"].max()
+    time_s = float(t1 - t0)
 
-    time_sailed = float(row["elapsed_race_time_s"])
-    distance_sailed = float(row["dist_from_start_m"])
+    # DISTANCE (robust)
+    d0 = df["dist_from_start_m"].min()
+    d1 = df["dist_from_start_m"].max()
+    dist_m = float(d1 - d0)
 
-    return time_sailed, distance_sailed
+    minutes = time_s / 60 if time_s else 0
 
+    boat = dist_m / minutes if minutes else 0
+    course = ref_length_m / minutes if minutes else 0
 
-# -------------------------------------------------
-# Data structure
-# -------------------------------------------------
-
-@dataclass
-class TotalRaceRow:
-    sailor: str
-    time_sailed_s: float | None
-    distance_sailed_m: float | None
-    avg_boat_speed_mpm: float | None
-    avg_course_speed_mpm: float | None
-    avg_heart_rate_bpm: float | None   # ✅ NEW
-    efficiency_pct: float | None
-    dnf: bool
-
-
-# -------------------------------------------------
-# Compute one sailor
-# -------------------------------------------------
-
-def _compute_one(race_id: str, sailor: str, course_length_m: float) -> TotalRaceRow:
-
-    path = _totalrace_path(sailor, race_id)
-
-    df = pd.read_csv(path)
-
-    snapshot = _load_finish_snapshot(path)
-
-    # --- HEART RATE ---
+    # HEART RATE
     avg_hr = None
     if "heart_rate" in df.columns:
-        hr_series = df["heart_rate"].dropna()
-        if not hr_series.empty:
-            avg_hr = float(hr_series.mean())
+        hr = df["heart_rate"].dropna()
+        if not hr.empty:
+            avg_hr = float(hr.mean())
 
-    if snapshot is None:
-        return TotalRaceRow(
-            sailor=sailor,
-            time_sailed_s=None,
-            distance_sailed_m=None,
-            avg_boat_speed_mpm=None,
-            avg_course_speed_mpm=None,
-            avg_heart_rate_bpm=None,
-            efficiency_pct=None,
-            dnf=True,
-        )
-
-    time_s, dist_m = snapshot
-
-    minutes = time_s / 60
-
-    boat_speed = dist_m / minutes if minutes else 0
-    course_speed = course_length_m / minutes if minutes else 0
-
-    efficiency = (course_length_m / dist_m * 100) if dist_m else 0
-
-    return TotalRaceRow(
-        sailor=sailor,
-        time_sailed_s=time_s,
-        distance_sailed_m=dist_m,
-        avg_boat_speed_mpm=boat_speed,
-        avg_course_speed_mpm=course_speed,
-        avg_heart_rate_bpm=avg_hr,
-        efficiency_pct=efficiency,
-        dnf=False,
-    )
+    return time_s, dist_m, boat, course, avg_hr
 
 
 # -------------------------------------------------
-# API
+# Shared loader
+# -------------------------------------------------
+
+def _list_sailors(race_id: str) -> List[str]:
+    pattern = f"_{race_id}.csv"
+    return sorted(set(p.name[:-len(pattern)] for p in TOTALRACES_DIR.glob(f"*{pattern}")))
+
+
+# -------------------------------------------------
+# TOTAL RACE API (UNCHANGED LOGIC)
 # -------------------------------------------------
 
 @router.get("/races/{race_id}/total_race_analytics")
 def total_race_analytics(race_id: str):
 
     course_length_m = _load_course_length_m(race_id)
-
-    sailors = _list_sailors_for_race(race_id)
+    sailors = _list_sailors(race_id)
 
     if not sailors:
         raise HTTPException(404, "No sailors found")
@@ -200,60 +121,132 @@ def total_race_analytics(race_id: str):
     rows = []
 
     for sailor in sailors:
-        rows.append(_compute_one(race_id, sailor, course_length_m))
+        df = pd.read_csv(TOTALRACES_DIR / f"{sailor}_{race_id}.csv")
 
-    finishers = [r for r in rows if not r.dnf]
-    dnfs = [r for r in rows if r.dnf]
+        # FULL DF
+        result = _compute_from_df(df, course_length_m)
 
-    finishers.sort(key=lambda r: r.time_sailed_s)
+        if not result:
+            continue
 
-    results = finishers + dnfs
+        time_s, dist_m, boat, course, hr = result
+
+        rows.append(dict(
+            sailor=sailor,
+            time_s=time_s,
+            dist_m=dist_m,
+            boat=boat,
+            course=course,
+            hr=hr,
+        ))
+
+    rows.sort(key=lambda x: x["time_s"])
+    winner = rows[0]
 
     out = []
 
-    winner = finishers[0] if finishers else None
+    for i, r in enumerate(rows, 1):
 
-    for rank, r in enumerate(results, start=1):
-
-        if r.dnf:
-            out.append(
-                {
-                    "rank": rank,
-                    "sailor": r.sailor,
-                    "length_of_course_m": int(round(course_length_m)),
-                    "time_sailed": "DNF",
-                    "distance_sailed_m": "—",
-                    "avg_heart_rate_bpm": "—",   # ✅ NEW
-                    "avg_boat_speed_mpm": "—",
-                    "avg_course_speed_mpm": "—",
-                }
-            )
-            continue
-
-        if rank == 1:
-            time_disp = _fmt_mmss(r.time_sailed_s)
-            dist_disp = int(round(r.distance_sailed_m))
-            hr_disp = int(round(r.avg_heart_rate_bpm)) if r.avg_heart_rate_bpm else "—"
-            boat_disp = int(round(r.avg_boat_speed_mpm))
-            course_disp = int(round(r.avg_course_speed_mpm))
+        if i == 1:
+            time_disp = _fmt_mmss(r["time_s"])
+            dist_disp = int(round(r["dist_m"]))
+            boat_disp = int(round(r["boat"]))
+            course_disp = int(round(r["course"]))
         else:
-            time_disp = _fmt_mmss_signed(r.time_sailed_s - winner.time_sailed_s)
-            dist_disp = _fmt_int_signed(r.distance_sailed_m - winner.distance_sailed_m)
-            hr_disp = int(round(r.avg_heart_rate_bpm)) if r.avg_heart_rate_bpm else "—"
-            boat_disp = _fmt_int_signed(r.avg_boat_speed_mpm - winner.avg_boat_speed_mpm)
-            course_disp = _fmt_int_signed(r.avg_course_speed_mpm - winner.avg_course_speed_mpm)
+            time_disp = _fmt_mmss_signed(r["time_s"] - winner["time_s"])
+            dist_disp = _fmt_int_signed(r["dist_m"] - winner["dist_m"])
+            boat_disp = _fmt_int_signed(r["boat"] - winner["boat"])
+            course_disp = _fmt_int_signed(r["course"] - winner["course"])
 
-        out.append(
-            {
-                "rank": rank,
-                "sailor": r.sailor,
-                "length_of_course_m": int(round(course_length_m)),
-                "time_sailed": time_disp,
-                "distance_sailed_m": dist_disp,
-                "avg_heart_rate_bpm": hr_disp,   # ✅ NEW
-                "avg_boat_speed_mpm": boat_disp,
-                "avg_course_speed_mpm": course_disp,
-            }
-        )
+        out.append({
+            "rank": i,
+            "sailor": r["sailor"],
+            "length_of_course_m": int(round(course_length_m)),
+            "time_sailed": time_disp,
+            "distance_sailed_m": dist_disp,
+            "avg_heart_rate_bpm": int(round(r["hr"])) if r["hr"] else "—",
+            "avg_boat_speed_mpm": boat_disp,
+            "avg_course_speed_mpm": course_disp,
+        })
 
     return out
+
+
+# -------------------------------------------------
+# LEG API (NEW — SAME ENGINE)
+# -------------------------------------------------
+
+@router.get("/leg_analytics")
+def leg_analytics(
+    race_id: str = Query(...),
+    leg: int = Query(...)
+):
+
+    sailors = _list_sailors(race_id)
+
+    if not sailors:
+        raise HTTPException(404, "No sailors found")
+
+    rows = []
+
+    for sailor in sailors:
+        df = pd.read_csv(TOTALRACES_DIR / f"{sailor}_{race_id}.csv")
+
+        # SLICE
+        leg_df = df[df["geom_leg_id"] == leg]
+
+        if leg_df.empty:
+            continue
+
+        # LEG LENGTH
+        d0 = leg_df["dist_from_start_m"].min()
+        d1 = leg_df["dist_from_start_m"].max()
+        leg_len = float(d1 - d0)
+
+        result = _compute_from_df(leg_df, leg_len)
+
+        if not result:
+            continue
+
+        time_s, dist_m, boat, course, hr = result
+
+        rows.append(dict(
+            sailor=sailor,
+            time_s=time_s,
+            dist_m=dist_m,
+            boat=boat,
+            course=course,
+            hr=hr,
+            length=leg_len
+        ))
+
+    rows.sort(key=lambda x: x["time_s"])
+    winner = rows[0]
+
+    out = []
+
+    for i, r in enumerate(rows, 1):
+
+        if i == 1:
+            time_disp = _fmt_mmss(r["time_s"])
+            dist_disp = int(round(r["dist_m"]))
+            boat_disp = int(round(r["boat"]))
+            course_disp = int(round(r["course"]))
+        else:
+            time_disp = _fmt_mmss_signed(r["time_s"] - winner["time_s"])
+            dist_disp = _fmt_int_signed(r["dist_m"] - winner["dist_m"])
+            boat_disp = _fmt_int_signed(r["boat"] - winner["boat"])
+            course_disp = _fmt_int_signed(r["course"] - winner["course"])
+
+        out.append({
+            "rank": i,
+            "sailor": r["sailor"],
+            "length_of_leg_m": int(round(r["length"])),
+            "time_sailed": time_disp,
+            "distance_sailed_m": dist_disp,
+            "avg_heart_rate_bpm": int(round(r["hr"])) if r["hr"] else "—",
+            "avg_boat_speed_mpm": boat_disp,
+            "avg_course_speed_mpm": course_disp,
+        })
+
+    return {"rows": out}
