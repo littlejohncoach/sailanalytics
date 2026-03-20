@@ -6,7 +6,6 @@ from ..loaders import (
     list_race_groups,
     load_group_df,
     sailors_in_group,
-    roster_colors,
 )
 
 router = APIRouter(tags=["tracks"])
@@ -29,12 +28,16 @@ def api_track(
     sailor: str = Query(...),
     leg: str | None = Query(None),
 ):
+    # ----------------------------
     # Validate race group
+    # ----------------------------
     groups = list_race_groups()
     if group_id not in groups:
         raise HTTPException(status_code=404, detail=f"Race group not found: {group_id}")
 
+    # ----------------------------
     # Validate sailor
+    # ----------------------------
     sailor = (sailor or "").strip().lower()
     if not sailor:
         raise HTTPException(status_code=400, detail="Missing sailor")
@@ -44,15 +47,19 @@ def api_track(
     if sailor not in sailors_lc:
         raise HTTPException(status_code=404, detail=f"Sailor not in group: {sailor}")
 
-    # Resolve color (fixed by sailor id; no shifting)
-    color = _SAILOR_COLOR_HEX.get(sailor)
-    if not color:
-        color = "#111111"
+    # ----------------------------
+    # Resolve color
+    # ----------------------------
+    color = _SAILOR_COLOR_HEX.get(sailor, "#111111")
 
-    # Load data
+    # ----------------------------
+    # Load sovereign dataset
+    # ----------------------------
     df = load_group_df(group_id)
 
+    # ----------------------------
     # Filter to this sailor
+    # ----------------------------
     if "sailor" in df.columns:
         df = df[df["sailor"].astype(str).str.strip().str.lower() == sailor].copy()
     elif "sailor_id" in df.columns:
@@ -62,25 +69,29 @@ def api_track(
     else:
         raise HTTPException(status_code=500, detail="No sailor column found in group dataframe")
 
-    # Build global time index since T0 BEFORE any leg slicing (1 Hz filled tapes)
-    if "timestamp_utc" in df.columns:
-        df = df.sort_values("timestamp_utc").reset_index(drop=True)
-    else:
-        # If timestamp_utc not present for some reason, keep deterministic order
-        df = df.reset_index(drop=True)
+    # ----------------------------
+    # REQUIRE canonical time axis
+    # ----------------------------
+    if "elapsed_race_time_s" not in df.columns:
+        raise HTTPException(status_code=500, detail="elapsed_race_time_s missing")
 
-    df["_t"] = range(len(df))  # global seconds since race start (T0 = first row)
+    # ----------------------------
+    # Sort by TRUE race time (GLOBAL AXIS)
+    # ----------------------------
+    df = df.sort_values("elapsed_race_time_s").reset_index(drop=True)
 
-    # Optional leg filter
+    # ----------------------------
+    # Optional leg filtering
+    # IMPORTANT: does NOT change time
+    # ----------------------------
     if leg and str(leg).lower() not in ("total", "total race", "total_race"):
         leg_col = None
-        for c in ("leg", "leg_no", "leg_index", "geom_leg_id", "leg_id", "leg_instance_id"):
+        for c in ("geom_leg_id", "leg_instance_id", "leg", "leg_no"):
             if c in df.columns:
                 leg_col = c
                 break
 
         if leg_col is None:
-            # viewer-safe response
             return {
                 "race_id": group_id,
                 "sailor": sailor,
@@ -97,6 +108,9 @@ def api_track(
 
         df = df[df[leg_col] == leg_int].copy()
 
+    # ----------------------------
+    # Empty safeguard
+    # ----------------------------
     if df.empty:
         return {
             "race_id": group_id,
@@ -107,34 +121,36 @@ def api_track(
             "track": [],
         }
 
+    # ----------------------------
     # Resolve latitude / longitude
-    lat_col = None
-    lon_col = None
-    for c in ("latitude", "lat", "latitude_deg"):
-        if c in df.columns:
-            lat_col = c
-            break
-    for c in ("longitude", "lon", "longitude_deg"):
-        if c in df.columns:
-            lon_col = c
-            break
+    # ----------------------------
+    lat_col = next((c for c in ("latitude", "lat", "latitude_deg") if c in df.columns), None)
+    lon_col = next((c for c in ("longitude", "lon", "longitude_deg") if c in df.columns), None)
 
     if not lat_col or not lon_col:
         raise HTTPException(status_code=500, detail="Latitude/Longitude columns not found")
 
-    # Include global time index `_t` in every point
+    # ----------------------------
+    # BUILD TRACK — DIRECT PROJECTION (NO TIME RECONSTRUCTION)
+    # ----------------------------
     pts = [
-        {"lat": float(r[lat_col]), "lon": float(r[lon_col]), "t": int(r["_t"])}
+        {
+            "lat": float(r[lat_col]),
+            "lon": float(r[lon_col]),
+            "t": int(r["elapsed_race_time_s"])   # 🔑 SINGLE SOURCE OF TIME
+        }
         for _, r in df.iterrows()
         if r[lat_col] == r[lat_col] and r[lon_col] == r[lon_col]
     ]
 
-    # IMPORTANT: return BOTH keys to keep compatibility with any newer code
+    # ----------------------------
+    # Return (viewer compatibility)
+    # ----------------------------
     return {
         "race_id": group_id,
         "sailor": sailor,
         "color": color,
         "leg": leg,
-        "points": pts,  # viewer_leaflet.js expects this
-        "track": pts,   # keep your newer naming too
+        "points": pts,
+        "track": pts,
     }
