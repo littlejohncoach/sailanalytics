@@ -1,4 +1,5 @@
-// total_race_analytics.js
+// coach/app/frontend/total_race_analytics.js
+
 import { apiGet } from "./api_client.js";
 import { state } from "./state.js";
 
@@ -13,9 +14,24 @@ function cell(v) {
 }
 
 export async function refreshTotalRaceAnalytics() {
-  const tbody = document.querySelector("#totalRaceTable tbody");
-  if (!tbody) return;
+  const tbody = document.querySelector("#dataTable tbody");
+  const thead = document.querySelector("#dataTable thead");
 
+  if (!tbody || !thead) return;
+
+  // Clear table
+  thead.innerHTML = `
+    <tr>
+      <th>Rank</th>
+      <th>Sailor</th>
+      <th>Length of course (m)</th>
+      <th>Time sailed</th>
+      <th>Distance sailed (m)</th>
+      <th>Average boat speed (m/min)</th>
+      <th>Average course speed (m/min)</th>
+      <th>Efficiency (%)</th>
+    </tr>
+  `;
   tbody.innerHTML = "";
 
   const raceId = state.raceId;
