@@ -95,17 +95,18 @@ function setAnalyticsTitle() {
     const tables = await import("./ui_tables.js");
     const viewer = await import("./viewer_leaflet.js");
 
-    // optional modules
+    // Total Race analytics
     let refreshTotalRaceAnalytics = null;
     try {
       const total = await import("./total_race_analytics.js");
       refreshTotalRaceAnalytics = getFn(total, ["refreshTotalRaceAnalytics"]);
     } catch {}
 
-    let refreshLegAnalytics = null;
+    // Leg analytics (correct function)
+    let loadSliceAndRender = null;
     try {
       const legs = await import("./main_leg_analytics.js");
-      refreshLegAnalytics = getFn(legs, ["refreshLegAnalytics"]);
+      loadSliceAndRender = getFn(legs, ["loadSliceAndRender"]);
       const initLegs = getFn(legs, ["initLegAnalyticsSubsystem"]);
       if (initLegs) initLegs();
     } catch {}
@@ -119,7 +120,7 @@ function setAnalyticsTitle() {
     const refreshViewer = getFn(viewer, ["refreshViewer"]);
 
     // ------------------------------------------------------------
-    // CORE CONTROL: SINGLE ANALYTICS CONTEXT
+    // SINGLE ANALYTICS CONTROL
     // ------------------------------------------------------------
 
     const onRefresh = async () => {
@@ -135,14 +136,14 @@ function setAnalyticsTitle() {
       const leg = getSelectedLeg();
 
       if (!leg || leg.includes("total")) {
-        // TOTAL ONLY
+        // TOTAL MODE
         if (refreshTotalRaceAnalytics) {
           await refreshTotalRaceAnalytics();
         }
       } else {
-        // LEG ONLY
-        if (refreshLegAnalytics) {
-          await refreshLegAnalytics();
+        // LEG MODE
+        if (loadSliceAndRender) {
+          await loadSliceAndRender();
         }
       }
     };
