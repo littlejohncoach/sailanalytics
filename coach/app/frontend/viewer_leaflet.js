@@ -788,7 +788,12 @@ async function drawCourseGeometry(map, raceId){
     const to   = [Number(b[0]), Number(b[1])];
     if (!Number.isFinite(from[0]) || !Number.isFinite(from[1]) || !Number.isFinite(to[0]) || !Number.isFinite(to[1])) continue;
 
-    L.polyline([from, to], { dashArray: "6,8", weight: 2, opacity: 0.9 }).addTo(_courseLayer);
+    L.polyline([from, to], { 
+  color: "#a6c8ff",
+  dashArray: "6,8", 
+  weight: 2, 
+  opacity: 0.5 
+}).addTo(_courseLayer);
 
     try {
       const bdeg = Number(leg.bearing_deg);
