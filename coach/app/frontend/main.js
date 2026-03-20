@@ -7,13 +7,6 @@ import { state } from "./state.js";
 // Helpers
 // ------------------------------------------------------------
 
-function esc(s) {
-  return String(s)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;");
-}
-
 function showOverlay(title, detail) {
   try {
     const elId = "sa-debug-overlay";
@@ -52,10 +45,6 @@ function getFn(mod, names) {
   return null;
 }
 
-// ------------------------------------------------------------
-// Leg selection helper
-// ------------------------------------------------------------
-
 function getSelectedLeg() {
   const el =
     document.getElementById("legSelect") ||
@@ -88,26 +77,11 @@ function setAnalyticsTitle() {
 
 (async () => {
   try {
-    // verify backend
     await apiGet("/api/races");
 
     const sidebar = await import("./ui_sidebar.js");
     const tables = await import("./ui_tables.js");
     const viewer = await import("./viewer_leaflet.js");
-
-    // Total Race analytics
-    let refreshTotalRaceAnalytics = null;
-    try {
-      const total = await import("./total_race_analytics.js");
-      refreshTotalRaceAnalytics = getFn(total, ["refreshTotalRaceAnalytics"]);
-    } catch {}
-
-    // Leg analytics (ONLY the correct function — NO old system)
-    let loadSliceAndRender = null;
-    try {
-      const legs = await import("./main_leg_analytics.js");
-      loadSliceAndRender = getFn(legs, ["loadSliceAndRender"]);
-    } catch {}
 
     const initViewer = getFn(viewer, ["initViewer"]);
     if (initViewer) initViewer();
@@ -116,10 +90,7 @@ function setAnalyticsTitle() {
     if (initTables) initTables();
 
     const refreshViewer = getFn(viewer, ["refreshViewer"]);
-
-    // ------------------------------------------------------------
-    // SINGLE ANALYTICS CONTROL
-    // ------------------------------------------------------------
+    const refreshTables = getFn(tables, ["refreshTables", "refreshTable"]);
 
     const onRefresh = async () => {
       setAnalyticsTitle();
@@ -132,22 +103,15 @@ function setAnalyticsTitle() {
         }
       } catch {}
 
-      const leg = getSelectedLeg();
-
-      if (!leg || leg.includes("total")) {
-        // TOTAL MODE
-        if (refreshTotalRaceAnalytics) {
-          await refreshTotalRaceAnalytics();
-        }
-      } else {
-        // LEG MODE
-        if (loadSliceAndRender) {
-          await loadSliceAndRender();
-        }
+      if (refreshTables) {
+        await refreshTables();
       }
     };
 
-    // sidebar boot
+    if (typeof sidebar.initSidebar !== "function") {
+      throw new Error("ui_sidebar.js does not export initSidebar(onRefresh).");
+    }
+
     await sidebar.initSidebar(onRefresh);
 
   } catch (e) {
