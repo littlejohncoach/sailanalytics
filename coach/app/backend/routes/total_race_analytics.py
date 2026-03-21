@@ -8,9 +8,9 @@ ROOT = Path(__file__).resolve().parents[4]
 TOTALRACES_DIR = ROOT / "data" / "totalraces"
 
 
-# -------------------------------
-# helpers
-# -------------------------------
+# -------------------------------------------------
+# HELPERS
+# -------------------------------------------------
 
 def fmt_mmss(seconds):
     sec = int(round(seconds))
@@ -19,9 +19,9 @@ def fmt_mmss(seconds):
     return f"{m}:{s:02d}"
 
 
-# -------------------------------
-# TOTAL RACE
-# -------------------------------
+# -------------------------------------------------
+# TOTAL RACE — RANK + TIME ONLY
+# -------------------------------------------------
 
 @router.get("/api/races/{race_id}/total_race_analytics")
 def total_race_analytics(race_id: str):
@@ -36,7 +36,10 @@ def total_race_analytics(race_id: str):
         sailor = f.name.split("_")[0]
         df = pd.read_csv(f)
 
+        # TIME (DIRECT)
         time_s = float(df["elapsed_race_time_s"].iloc[0])
+
+        # STATUS
         finished = df["finished_flag"].max() == 1
 
         rows.append({
@@ -45,13 +48,16 @@ def total_race_analytics(race_id: str):
             "finished": finished
         })
 
+    # SPLIT
     finishers = [r for r in rows if r["finished"]]
     dnfs = [r for r in rows if not r["finished"]]
 
+    # RANK
     finishers.sort(key=lambda r: r["time_s"])
 
     out = []
 
+    # FINISHERS
     for i, r in enumerate(finishers, start=1):
         out.append({
             "rank": i,
@@ -59,6 +65,7 @@ def total_race_analytics(race_id: str):
             "time_sailed": fmt_mmss(r["time_s"])
         })
 
+    # DNFs
     for r in dnfs:
         out.append({
             "rank": None,
@@ -69,12 +76,12 @@ def total_race_analytics(race_id: str):
     return out
 
 
-# -------------------------------
-# LEG RANK + TIME
-# -------------------------------
+# -------------------------------------------------
+# LEG ANALYTICS — RANK + TIME ONLY
+# -------------------------------------------------
 
-@router.get("/api/leg_time_analytics")
-def leg_time_analytics(race_id: str, leg: int):
+@router.get("/api/leg_analytics")
+def leg_analytics(race_id: str, leg: int):
 
     files = list(TOTALRACES_DIR.glob(f"*_{race_id}.csv"))
     if not files:
@@ -86,6 +93,7 @@ def leg_time_analytics(race_id: str, leg: int):
         sailor = f.name.split("_")[0]
         df = pd.read_csv(f)
 
+        # FILTER LEG
         leg_df = df[df["geom_leg_id"] == leg]
 
         if leg_df.empty:
@@ -96,6 +104,7 @@ def leg_time_analytics(race_id: str, leg: int):
             })
             continue
 
+        # TIME FROM UTC
         t0 = pd.to_datetime(leg_df.iloc[0]["timestamp_utc"])
         t1 = pd.to_datetime(leg_df.iloc[-1]["timestamp_utc"])
 
@@ -107,13 +116,16 @@ def leg_time_analytics(race_id: str, leg: int):
             "finished": True
         })
 
+    # SPLIT
     finishers = [r for r in rows if r["finished"] and r["time_s"] is not None]
     dnfs = [r for r in rows if not r["finished"] or r["time_s"] is None]
 
+    # RANK
     finishers.sort(key=lambda r: r["time_s"])
 
     out = []
 
+    # FINISHERS
     for i, r in enumerate(finishers, start=1):
         out.append({
             "rank": i,
@@ -121,6 +133,7 @@ def leg_time_analytics(race_id: str, leg: int):
             "time_sailed": fmt_mmss(r["time_s"])
         })
 
+    # DNFs
     for r in dnfs:
         out.append({
             "rank": None,
