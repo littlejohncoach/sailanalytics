@@ -1,47 +1,105 @@
-// coach/app/frontend/leg_analytics.js
-// -----------------------------------------------------------------------------
-// DISK LOCATION (repo):
-//   /Users/marklittlejohn/Desktop/SailAnalytics/coach/app/frontend/leg_analytics.js
-//
-// BROWSER URL (served by FastAPI StaticFiles mount):
-//   /static/leg_analytics.js
-//
-// NOTE:
-//   "/static" is a URL prefix, not a disk folder you should create.
-// -----------------------------------------------------------------------------
+from pathlib import Path
+import pandas as pd
+from fastapi import APIRouter, HTTPException, Query
 
-import { apiGet } from "./api_client.js";
+router = APIRouter()
 
-/**
- * Backend endpoint (URL):
- *   GET /api/leg_analytics?race_id=...&leg=...
- *
- * Returns JSON payload:
- *   { race_id: string, leg: string, rows: Array<...> }
- *
- * This module does NOT touch global state.
- * It is a pure fetch wrapper.
- */
-export async function fetchLegAnalytics(raceId, legId) {
-  const rid = String(raceId || "").trim();
-  const lid = String(legId || "").trim();
+ROOT = Path(__file__).resolve().parents[4]
+TOTALRACES_DIR = ROOT / "data" / "totalraces"
 
-  if (!rid || !lid) {
-    return { race_id: rid, leg: lid, rows: [] };
-  }
 
-  const url =
-    `/api/leg_analytics` +
-    `?race_id=${encodeURIComponent(rid)}` +
-    `&leg=${encodeURIComponent(lid)}`;
+def fmt_mmss(seconds):
+    sec = int(round(seconds))
+    m = sec // 60
+    s = sec % 60
+    return f"{m}:{s:02d}"
 
-  const payload = await apiGet(url);
 
-  // Normalize shape defensively, but do not invent data.
-  const rows = payload && Array.isArray(payload.rows) ? payload.rows : [];
-  return {
-    race_id: payload?.race_id ?? rid,
-    leg: payload?.leg ?? lid,
-    rows,
-  };
-}
+def fmt_delta(seconds):
+    sec = int(round(seconds))
+    m = sec // 60
+    s = sec % 60
+    return f"+{m}:{s:02d}"
+
+
+@router.get("/leg_analytics")
+def leg_analytics(
+    race_id: str = Query(...),
+    leg: int = Query(...)
+):
+
+    files = list(TOTALRACES_DIR.glob(f"*_{race_id}.csv"))
+    if not files:
+        raise HTTPException(404, "No sailors found")
+
+    rows = []
+
+    for f in files:
+        sailor = f.name.split("_")[0]
+        df = pd.read_csv(f)
+
+        df["geom_leg_id"] = pd.to_numeric(df["geom_leg_id"], errors="coerce")
+
+        leg_df = df[df["geom_leg_id"] == leg]
+
+        if leg_df.empty:
+            rows.append({
+                "sailor": sailor,
+                "time_s": None,
+                "finished": False
+            })
+            continue
+
+        leg_df["timestamp_utc"] = pd.to_datetime(
+            leg_df["timestamp_utc"], errors="coerce"
+        )
+        leg_df = leg_df.dropna(subset=["timestamp_utc"]).sort_values("timestamp_utc")
+
+        if leg_df.empty:
+            rows.append({
+                "sailor": sailor,
+                "time_s": None,
+                "finished": False
+            })
+            continue
+
+        t0 = leg_df.iloc[0]["timestamp_utc"]
+        t1 = leg_df.iloc[-1]["timestamp_utc"]
+
+        time_s = (t1 - t0).total_seconds()
+
+        rows.append({
+            "sailor": sailor,
+            "time_s": time_s,
+            "finished": True
+        })
+
+    finishers = [r for r in rows if r["finished"] and r["time_s"] is not None]
+    dnfs = [r for r in rows if not r["finished"] or r["time_s"] is None]
+
+    finishers.sort(key=lambda r: r["time_s"])
+
+    out = []
+
+    winner_time = finishers[0]["time_s"] if finishers else None
+
+    for i, r in enumerate(finishers, start=1):
+        if i == 1:
+            time_disp = fmt_mmss(r["time_s"])
+        else:
+            time_disp = fmt_delta(r["time_s"] - winner_time)
+
+        out.append({
+            "rank": i,
+            "sailor": r["sailor"],
+            "time_sailed": time_disp,
+        })
+
+    for r in dnfs:
+        out.append({
+            "rank": None,
+            "sailor": r["sailor"],
+            "time_sailed": "DNF",
+        })
+
+    return {"rows": out}

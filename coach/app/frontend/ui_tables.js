@@ -30,12 +30,31 @@ export async function refreshTables() {
   const leg = state.leg;
 
   if (!leg || leg === "" || leg === "Total Race") {
-    setTitle("Total Race Analytics");
     await renderTotal();
   } else {
-    setTitle(`Analytics — Leg ${leg}`);
     await renderLeg();
   }
+}
+
+// ------------------------------------------------------------
+// HEADERS
+// ------------------------------------------------------------
+
+function setHeaderAnalytics() {
+  const thead = document.querySelector("#dataTable thead");
+  if (!thead) return;
+
+  thead.innerHTML = `
+    <tr>
+      <th>Rank</th>
+      <th>Sailor</th>
+      <th>Time sailed</th>
+      <th>Distance sailed (m)</th>
+      <th>Avg heart rate (bpm)</th>
+      <th>Average boat speed (m/min)</th>
+      <th>Average course speed (m/min)</th>
+    </tr>
+  `;
 }
 
 // ------------------------------------------------------------
@@ -47,43 +66,25 @@ async function renderTotal() {
     `/api/races/${encodeURIComponent(state.raceId)}/total_race_analytics`
   );
 
-  const thead = document.querySelector("#dataTable thead");
   const tbody = document.querySelector("#dataTable tbody");
+  if (!tbody) return;
 
-  if (!thead || !tbody) return;
-
-  thead.innerHTML = `
-    <tr>
-      <th>Rank</th>
-      <th>Sailor</th>
-      <th>Length of course (m)</th>
-      <th>Time sailed</th>
-      <th>Distance sailed (m)</th>
-      <th>Avg heart rate (bpm)</th>
-      <th>Average boat speed (m/min)</th>
-      <th>Average course speed (m/min)</th>
-    </tr>
-  `;
+  setTitle("Total Race Analytics");
+  setHeaderAnalytics();
 
   tbody.innerHTML = "";
 
   data.forEach((r, i) => {
     const tr = document.createElement("tr");
 
-    const hr =
-      r.avg_heart_rate_bpm ??
-      r.avg_hr_bpm ??
-      "—";
-
     tr.innerHTML = `
       <td>${r.rank ?? i + 1}</td>
-      <td class="left">${r.sailor ?? ""}</td>
-      <td>${round(r.length_of_course_m)}</td>
+      <td>${r.sailor ?? ""}</td>
       <td>${r.time_sailed ?? ""}</td>
-      <td>${round(r.distance_sailed_m)}</td>
-      <td>${round(hr)}</td>
-      <td>${round(r.avg_boat_speed_mpm)}</td>
-      <td>${round(r.avg_course_speed_mpm)}</td>
+      <td>${r.distance_sailed_m ?? ""}</td>
+      <td>${r.avg_hr_bpm ?? ""}</td>
+      <td>${r.avg_boat_speed_mpm ?? ""}</td>
+      <td>${r.avg_course_speed_mpm ?? ""}</td>
     `;
 
     tbody.appendChild(tr);
@@ -91,7 +92,7 @@ async function renderTotal() {
 }
 
 // ------------------------------------------------------------
-// LEG ANALYTICS
+// LEG
 // ------------------------------------------------------------
 
 async function renderLeg() {
@@ -101,24 +102,13 @@ async function renderLeg() {
 
   const rows = res?.rows || [];
 
-  const thead = document.querySelector("#dataTable thead");
   const tbody = document.querySelector("#dataTable tbody");
+  if (!tbody) return;
 
-  if (!thead || !tbody) return;
+  const legLength = rows?.[0]?.length_leg_m ?? "";
+  setTitle(`Analytics — Leg ${state.leg} (${legLength} m)`);
 
-  thead.innerHTML = `
-    <tr>
-      <th>Rank</th>
-      <th>Sailor</th>
-      <th>Length of leg (m)</th>
-      <th>Time sailed</th>
-      <th>Distance sailed (m)</th>
-      <th>Avg heart rate (bpm)</th>
-      <th>Average boat speed (m/min)</th>
-      <th>Average course speed (m/min)</th>
-    </tr>
-  `;
-
+  setHeaderAnalytics();
   tbody.innerHTML = "";
 
   rows.forEach((r, i) => {
@@ -126,13 +116,12 @@ async function renderLeg() {
 
     tr.innerHTML = `
       <td>${r.rank ?? i + 1}</td>
-      <td class="left">${r.sailor ?? ""}</td>
-      <td>${round(r.length_of_leg_m)}</td>
+      <td>${r.sailor ?? ""}</td>
       <td>${r.time_sailed ?? ""}</td>
-      <td>${round(r.distance_sailed_m)}</td>
-      <td>${round(r.avg_heart_rate_bpm)}</td>
-      <td>${round(r.avg_boat_speed_mpm)}</td>
-      <td>${round(r.avg_course_speed_mpm)}</td>
+      <td>${r.distance_sailed_m ?? ""}</td>
+      <td>${r.avg_hr_bpm ?? ""}</td>
+      <td>${r.avg_boat_speed_mpm ?? ""}</td>
+      <td>${r.avg_course_speed_mpm ?? ""}</td>
     `;
 
     tbody.appendChild(tr);
@@ -140,15 +129,10 @@ async function renderLeg() {
 }
 
 // ------------------------------------------------------------
-// HELPERS
+// TITLE
 // ------------------------------------------------------------
 
 function setTitle(txt) {
   const el = document.getElementById("analyticsTitle");
   if (el) el.textContent = txt;
-}
-
-function round(v) {
-  const n = Number(v);
-  return Number.isFinite(n) ? Math.round(n) : "—";
 }
