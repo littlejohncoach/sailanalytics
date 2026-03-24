@@ -7,7 +7,7 @@
 
   <link rel="stylesheet" href="/static/styles.css" />
 
-  <!-- Leaflet (CDN) -->
+  <!-- Leaflet -->
   <link
     rel="stylesheet"
     href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
@@ -48,13 +48,9 @@
         <div id="meta"></div>
       </header>
 
-      <!-- TRACK VIEWER -->
+      <!-- MAP -->
       <section id="viewerSection">
-        <h3>Track Viewer</h3>
-
         <div id="map"></div>
-
-       
       </section>
 
       <!-- ANALYTICS -->
@@ -69,7 +65,7 @@
         </div>
       </section>
 
-      <!-- PLAYER CONTROLS (MOVED TO BOTTOM) -->
+      <!-- PLAYER CONTROLS -->
       <div id="playerControls" class="player-controls" style="display:none;">
 
         <div class="player-row">
@@ -92,14 +88,17 @@
 
       </div>
 
+      <!-- BOTTOM BUFFER -->
+      <div id="bottomSpacer"></div>
+
     </main>
   </div>
 
   <!-- Leaflet -->
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-          crossorigin=""></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-  <!-- Main app -->
+  <!-- Main -->
   <script type="module" src="/static/main.js"></script>
+
 </body>
 </html>
