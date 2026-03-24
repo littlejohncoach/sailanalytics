@@ -1,26 +1,17 @@
 import { apiGet } from "./api_client.js";
 import { state } from "./state.js";
 
-/**
- * ui_sidebar.js
- * ------------------------------------------------------------
- * Robust behavior:
- * - Race dropdown populates from GET /api/races
- * - START BLANK (no auto-select)
- * - Sailors multi-select toggles on click (no Cmd/Ctrl required)
- * - Refresh button triggers reload
- * - If user ends up with zero selected sailors, treat as ALL (once sailors exist)
- * ------------------------------------------------------------
- */
+/* =========================================================
+   COLORS
+========================================================= */
 
-// Canonical fixed roster colors (MUST match backend tracks.py)
 const SAILOR_COLOR_HEX = {
-  yalcin:   "#1F77B4",
-  berkay:   "#FF7F0E",
+  yalcin: "#1F77B4",
+  berkay: "#FF7F0E",
   lourenco: "#2CA02C",
-  joao:     "#D62728",
-  william:  "#9467BD",
-  edu:      "#17BECF",
+  joao: "#D62728",
+  william: "#9467BD",
+  edu: "#17BECF",
 };
 
 function colorForSailor(name) {
@@ -28,24 +19,25 @@ function colorForSailor(name) {
   return SAILOR_COLOR_HEX[k] || "#111111";
 }
 
-// Parse race_id like "200126_R1_yellow" -> sortable key (YYYYMMDD + raceNo + fleet)
-// We sort newest date first, then race number desc, then fleet asc.
+/* =========================================================
+   SORTING
+========================================================= */
+
 function sortKeyForRaceId(raceId) {
   const rid = String(raceId || "").trim();
   const m = rid.match(/^(\d{6})_R(\d+)_?(.*)$/i);
-  if (!m) return { dateKey: 0, raceNo: 0, fleet: rid.toLowerCase() };
 
-  const ddmmyy = m[1];
-  const raceNo = parseInt(m[2], 10) || 0;
-  const fleet = String(m[3] || "").toLowerCase();
+  if (!m) return { dateKey: 0, raceNo: 0, fleet: rid };
 
-  // ddmmyy -> yymmdd -> YYYYMMDD (assume 20yy)
-  const dd = ddmmyy.slice(0, 2);
-  const mm = ddmmyy.slice(2, 4);
-  const yy = ddmmyy.slice(4, 6);
-  const yyyymmdd = parseInt(`20${yy}${mm}${dd}`, 10) || 0;
+  const dd = m[1].slice(0, 2);
+  const mm = m[1].slice(2, 4);
+  const yy = m[1].slice(4, 6);
 
-  return { dateKey: yyyymmdd, raceNo, fleet };
+  const dateKey = parseInt(`20${yy}${mm}${dd}`, 10);
+  const raceNo = parseInt(m[2], 10);
+  const fleet = m[3] || "";
+
+  return { dateKey, raceNo, fleet };
 }
 
 function compareRacesNewestFirst(a, b) {
@@ -55,43 +47,32 @@ function compareRacesNewestFirst(a, b) {
   const ka = sortKeyForRaceId(ida);
   const kb = sortKeyForRaceId(idb);
 
-  // date desc
   if (ka.dateKey !== kb.dateKey) return kb.dateKey - ka.dateKey;
-  // race number desc
   if (ka.raceNo !== kb.raceNo) return kb.raceNo - ka.raceNo;
-  // fleet asc
   if (ka.fleet < kb.fleet) return -1;
   if (ka.fleet > kb.fleet) return 1;
 
-  // final tie-breaker: label/name asc
-  const la = String(a?.label ?? a?.name ?? ida).toLowerCase();
-  const lb = String(b?.label ?? b?.name ?? idb).toLowerCase();
-  if (la < lb) return -1;
-  if (la > lb) return 1;
   return 0;
 }
 
+/* =========================================================
+   INIT
+========================================================= */
+
 export async function initSidebar(onRefresh) {
+
   const raceSelect = document.getElementById("raceSelect");
   const sailorSelect = document.getElementById("sailorSelect");
   const legSelect = document.getElementById("legSelect");
   const refreshBtn = document.getElementById("refreshBtn");
-  const status = document.getElementById("status");
   const meta = document.getElementById("meta");
 
-  // If critical controls are missing, silently do nothing (avoid breaking dashboard)
-  if (!raceSelect || !sailorSelect || !legSelect || !refreshBtn) return;
-
-  function setStatus(msg) {
-    if (status) status.textContent = msg || "";
-  }
-
   function allSailors() {
-    return Array.from(sailorSelect.options).map((o) => o.value);
+    return Array.from(sailorSelect.options).map(o => o.value);
   }
 
   function selectedSailors() {
-    return Array.from(sailorSelect.selectedOptions).map((o) => o.value);
+    return Array.from(sailorSelect.selectedOptions).map(o => o.value);
   }
 
   function selectedSailorsOrAll() {
@@ -103,18 +84,9 @@ export async function initSidebar(onRefresh) {
     state.raceId = raceSelect.value || "";
     state.sailors = selectedSailorsOrAll();
 
-    // Keep existing contract (other modules may read state.leg)
     const v = String(legSelect.value || "").trim();
     state.leg = v || "Total Race";
-
-    // New contract for leg_analytics.js:
-    // - state.legId must be "1".."6" when a leg is selected
-    // - state.legId must be "" when Total Race is selected (disables leg analytics fetch)
-    if (v && v !== "Total Race") {
-      state.legId = v; // "1".."6"
-    } else {
-      state.legId = "";
-    }
+    state.legId = (v && v !== "Total Race") ? v : "";
   }
 
   function triggerRefresh() {
@@ -122,9 +94,10 @@ export async function initSidebar(onRefresh) {
     if (typeof onRefresh === "function") onRefresh();
   }
 
-  // ------------------------------------------------------------
-  // Multi-select behaves like checkboxes (toggle on click)
-  // ------------------------------------------------------------
+  /* =========================================================
+     MULTI SELECT
+  ========================================================= */
+
   sailorSelect.addEventListener("mousedown", (e) => {
     const opt = e.target;
     if (!opt || opt.tagName !== "OPTION") return;
@@ -132,115 +105,134 @@ export async function initSidebar(onRefresh) {
     e.preventDefault();
     opt.selected = !opt.selected;
 
-    sailorSelect.dispatchEvent(new Event("change", { bubbles: true }));
+    sailorSelect.dispatchEvent(
+      new Event("change", { bubbles: true })
+    );
   });
 
-  sailorSelect.addEventListener("change", () => {
-    syncState();
-  });
+  sailorSelect.addEventListener("change", syncState);
+  legSelect.addEventListener("change", syncState);
 
-  legSelect.addEventListener("change", () => {
-    syncState();
-  });
+  /* =========================================================
+     HELPERS
+  ========================================================= */
 
-  // ------------------------------------------------------------
-  // Helper: normalize apiGet return shapes
-  // ------------------------------------------------------------
   function normalizeArray(x) {
     if (Array.isArray(x)) return x;
-    if (x && Array.isArray(x.data)) return x.data;
-    if (x && Array.isArray(x.items)) return x.items;
-    if (x && Array.isArray(x.races)) return x.races;
-    return null;
+    if (x?.data) return x.data;
+    if (x?.items) return x.items;
+    if (x?.races) return x.races;
+    return [];
   }
 
-  // ------------------------------------------------------------
-  // Load races (sorted newest date first)
-  // ------------------------------------------------------------
+  /* =========================================================
+     LOAD RACES
+  ========================================================= */
+
   async function loadRaces() {
-    setStatus("Loading races…");
-    raceSelect.innerHTML = "<option value=''>—</option>";
+
+    raceSelect.innerHTML = "";
 
     const raw = await apiGet("/api/races");
-    const racesRaw = normalizeArray(raw);
-    if (!racesRaw) {
-      // Don’t crash the whole UI; just show status.
-      setStatus("Could not parse /api/races response.");
-      return [];
-    }
+    const races = normalizeArray(raw).sort(compareRacesNewestFirst);
 
-    // IMPORTANT: sort newest first (by race_id "DDMMYY_Rn_fleet")
-    const races = [...racesRaw].sort(compareRacesNewestFirst);
+    if (!races.length) return;
+
+    const firstId = races[0].id ?? races[0].race_id ?? races[0].name;
+    const latestDate = String(firstId).slice(0,6);
+
+    const latest = [];
+    const older = [];
 
     for (const r of races) {
-      if (!r) continue;
       const id = r.id ?? r.race_id ?? r.name;
-      if (!id) continue;
+
+      if (String(id).startsWith(latestDate))
+        latest.push(r);
+      else
+        older.push(r);
+    }
+
+    // latest only
+    for (const r of latest) {
+      const id = r.id ?? r.race_id ?? r.name;
 
       const opt = document.createElement("option");
       opt.value = id;
-      opt.textContent = r.label || r.name || String(id);
+      opt.textContent = r.label || r.name || id;
+
       raceSelect.appendChild(opt);
     }
 
-    setStatus("Select a race.");
-    return races;
+    // show more
+    if (older.length) {
+
+      const divider = document.createElement("option");
+      divider.disabled = true;
+      divider.textContent = "────────────";
+      raceSelect.appendChild(divider);
+
+      const more = document.createElement("option");
+      more.value = "__more__";
+      more.textContent = "▼ Show previous races";
+      raceSelect.appendChild(more);
+    }
   }
 
-  // ------------------------------------------------------------
-  // Load race info -> populate sailors + legs
-  // ------------------------------------------------------------
-  async function loadRaceInfo(groupId) {
-    // Reset UI
-    sailorSelect.innerHTML = "";
-    legSelect.innerHTML = "<option value=''>—</option>";
-    if (meta) meta.textContent = "";
+  async function expandAllRaces() {
 
-    state.raceId = groupId || "";
-    state.sailors = [];
-    state.leg = "Total Race";
-    state.legId = ""; // keep leg analytics disabled until a numeric leg is selected
+    const raw = await apiGet("/api/races");
+    const races = normalizeArray(raw).sort(compareRacesNewestFirst);
 
-    if (!groupId) {
-      setStatus("Select a race.");
-      return;
+    raceSelect.innerHTML = "";
+
+    for (const r of races) {
+      const id = r.id ?? r.race_id ?? r.name;
+
+      const opt = document.createElement("option");
+      opt.value = id;
+      opt.textContent = r.label || r.name || id;
+
+      raceSelect.appendChild(opt);
     }
+  }
 
-    setStatus("Loading race info…");
-    const info = await apiGet(`/api/races/${encodeURIComponent(groupId)}/info`);
+  /* =========================================================
+     LOAD RACE INFO
+  ========================================================= */
 
-    // Keep this if other modules rely on it, but DO NOT use it for colors anymore.
-    state.colors = info && info.colors ? info.colors : {};
+  async function loadRaceInfo(groupId) {
+
+    sailorSelect.innerHTML = "";
+    legSelect.innerHTML = "";
+
+    const info =
+      await apiGet(`/api/races/${groupId}/info`);
 
     if (meta && info) {
-      const d = info.date ?? "";
-      const rn = info.race_number ?? "";
-      const f = info.fleet ?? "";
-      meta.textContent = `Date: ${d} | Race: ${rn} | Fleet: ${f}`;
+      meta.textContent =
+        `Date: ${info.date} | Race: ${info.race_number} | Fleet: ${info.fleet}`;
     }
 
-    // Sailors: add all and select all by default (color names using canonical palette)
-    const sailors = info && Array.isArray(info.sailors) ? info.sailors : [];
+    const sailors = info?.sailors || [];
+
     for (const s of sailors) {
+
       const opt = document.createElement("option");
       opt.value = s;
       opt.textContent = s;
       opt.selected = true;
-
-      // Canonical color (matches tracks.py)
       opt.style.color = colorForSailor(s);
 
       sailorSelect.appendChild(opt);
     }
 
-    // Legs: Total Race + numeric legs
     const totalOpt = document.createElement("option");
     totalOpt.value = "Total Race";
     totalOpt.textContent = "Total Race";
     legSelect.appendChild(totalOpt);
 
-    const legs = info && Array.isArray(info.legs) ? info.legs : [];
-    for (const L of legs) {
+    for (const L of info?.legs || []) {
       const opt = document.createElement("option");
       opt.value = String(L);
       opt.textContent = String(L);
@@ -248,39 +240,43 @@ export async function initSidebar(onRefresh) {
     }
 
     legSelect.value = "Total Race";
-
-    syncState();
-    setStatus("");
   }
 
-  // ------------------------------------------------------------
-  // Events
-  // ------------------------------------------------------------
+  /* =========================================================
+     EVENTS
+  ========================================================= */
+
   raceSelect.addEventListener("change", async () => {
+
+    if (raceSelect.value === "__more__") {
+      await expandAllRaces();
+      return;
+    }
+
     await loadRaceInfo(raceSelect.value);
     triggerRefresh();
   });
 
-  refreshBtn.addEventListener("click", () => {
-    triggerRefresh();
-  });
+  refreshBtn.addEventListener("click", triggerRefresh);
 
-  // ------------------------------------------------------------
-  // Initial load (START BLANK)
-  // ------------------------------------------------------------
+  /* =========================================================
+     INIT
+  ========================================================= */
+
   await loadRaces();
 
-  // leave blank/unselected until user chooses
-  raceSelect.value = "";
-  sailorSelect.innerHTML = "";
-  legSelect.innerHTML = "<option value=''>—</option>";
-  if (meta) meta.textContent = "";
+  if (raceSelect.options.length > 0) {
 
-  state.raceId = "";
-  state.sailors = [];
-  state.leg = "Total Race";
-  state.legId = ""; // disable leg analytics fetch on blank start
-  state.colors = {};
+    raceSelect.selectedIndex = 0;
 
-  setStatus("Select a race.");
+    const first = raceSelect.options[0].value;
+
+    await loadRaceInfo(first);
+
+    syncState();
+
+    if (typeof onRefresh === "function") {
+      onRefresh();
+    }
+  }
 }

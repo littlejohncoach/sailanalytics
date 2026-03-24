@@ -137,6 +137,26 @@ html, body {
 }
 
 /* =========================================================
+   TABLE ALIGNMENT
+========================================================= */
+
+#dataTable th:nth-child(1),
+#dataTable td:nth-child(1) {
+  text-align: center;
+  width: 40px;
+}
+
+#dataTable th:nth-child(2),
+#dataTable td:nth-child(2) {
+  text-align: left;
+}
+
+#dataTable th:nth-child(n+3),
+#dataTable td:nth-child(n+3) {
+  text-align: center;
+}
+
+/* =========================================================
    PLAYER CONTROLS
 ========================================================= */
 
