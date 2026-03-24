@@ -95,7 +95,7 @@ export async function initSidebar(onRefresh) {
   }
 
   /* =========================================================
-     MULTI SELECT
+     MULTI SELECT SAILORS
   ========================================================= */
 
   sailorSelect.addEventListener("mousedown", (e) => {
@@ -112,10 +112,6 @@ export async function initSidebar(onRefresh) {
 
   sailorSelect.addEventListener("change", syncState);
   legSelect.addEventListener("change", syncState);
-
-  /* =========================================================
-     HELPERS
-  ========================================================= */
 
   function normalizeArray(x) {
     if (Array.isArray(x)) return x;
@@ -153,7 +149,6 @@ export async function initSidebar(onRefresh) {
         older.push(r);
     }
 
-    // latest only
     for (const r of latest) {
       const id = r.id ?? r.race_id ?? r.name;
 
@@ -164,7 +159,6 @@ export async function initSidebar(onRefresh) {
       raceSelect.appendChild(opt);
     }
 
-    // show more
     if (older.length) {
 
       const divider = document.createElement("option");
@@ -235,11 +229,16 @@ export async function initSidebar(onRefresh) {
     for (const L of info?.legs || []) {
       const opt = document.createElement("option");
       opt.value = String(L);
-      opt.textContent = String(L);
+      opt.textContent = "Leg " + String(L);
       legSelect.appendChild(opt);
     }
 
-    legSelect.value = "Total Race";
+    // DEFAULT LEG 1
+    if (info?.legs?.length) {
+      legSelect.value = String(info.legs[0]);
+    } else {
+      legSelect.value = "Total Race";
+    }
   }
 
   /* =========================================================
@@ -275,8 +274,13 @@ export async function initSidebar(onRefresh) {
 
     syncState();
 
-    if (typeof onRefresh === "function") {
-      onRefresh();
-    }
+    // force leg 1 analytics load
+    legSelect.dispatchEvent(new Event("change"));
+
+    setTimeout(() => {
+      if (typeof onRefresh === "function") {
+        onRefresh();
+      }
+    }, 20);
   }
 }
