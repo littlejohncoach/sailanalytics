@@ -74,7 +74,7 @@ async function renderTotal() {
 
   tbody.innerHTML = "";
 
-  data.forEach((r, i) => {
+  data.filter(r => state.sailors?.includes(r.sailor)).forEach((r, i) => {
     const tr = document.createElement("tr");
 
     tr.innerHTML = `
@@ -111,7 +111,7 @@ async function renderLeg() {
   setHeaderAnalytics();
   tbody.innerHTML = "";
 
-  rows.forEach((r, i) => {
+  rows.filter(r => state.sailors?.includes(r.sailor)).forEach((r, i) => {
     const tr = document.createElement("tr");
 
     tr.innerHTML = `
