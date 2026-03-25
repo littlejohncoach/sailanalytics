@@ -55,7 +55,7 @@ def api_track(
     color = _SAILOR_COLOR_HEX.get(sailor, "#111111")
 
     # ---------------------------------------------------------
-    # Load data
+    # Load data (TOTALRACES)
     # ---------------------------------------------------------
     df = load_group_df(group_id)
 
@@ -80,25 +80,22 @@ def api_track(
         }
 
     # ---------------------------------------------------------
-    # TIME — REAL RACE TIME (FIXED)
+    # TIME — TRUE RACE TIME FROM timestamp_utc
     # ---------------------------------------------------------
     if "timestamp_utc" not in df.columns:
         raise HTTPException(status_code=500, detail="timestamp_utc column required")
 
-    # Parse + sort
     df["timestamp_utc"] = pd.to_datetime(df["timestamp_utc"], utc=True, errors="coerce")
     df = df.dropna(subset=["timestamp_utc"]).sort_values("timestamp_utc").reset_index(drop=True)
 
-    # Global T0 = first timestamp (already aligned by pipeline)
     t0 = df["timestamp_utc"].iloc[0]
-
-    # TRUE race time in seconds
     df["_t"] = (df["timestamp_utc"] - t0).dt.total_seconds().astype(int)
 
     # ---------------------------------------------------------
-    # Optional leg filter (AFTER time is defined)
+    # Optional leg filter (after time creation)
     # ---------------------------------------------------------
     if leg and str(leg).lower() not in ("total", "total race", "total_race"):
+
         leg_col = None
         for c in ("leg", "leg_no", "leg_index", "geom_leg_id", "leg_id", "leg_instance_id"):
             if c in df.columns:
@@ -152,13 +149,35 @@ def api_track(
         raise HTTPException(status_code=500, detail="Latitude/Longitude columns not found")
 
     # ---------------------------------------------------------
-    # Build points (WITH TRUE TIME)
+    # DISTANCE TO TARGET (from TOTALRACES)
     # ---------------------------------------------------------
-    pts = [
-        {"lat": float(r[lat_col]), "lon": float(r[lon_col]), "t": int(r["_t"])}
-        for _, r in df.iterrows()
-        if r[lat_col] == r[lat_col] and r[lon_col] == r[lon_col]
-    ]
+    has_dist = "dist_to_target_m" in df.columns
+
+    # ---------------------------------------------------------
+    # Build points (WITH TIME + DISTANCE)
+    # ---------------------------------------------------------
+    pts = []
+    for _, r in df.iterrows():
+
+        lat = r[lat_col]
+        lon = r[lon_col]
+
+        if lat != lat or lon != lon:
+            continue
+
+        pt = {
+            "lat": float(lat),
+            "lon": float(lon),
+            "t": int(r["_t"]),
+        }
+
+        if has_dist:
+            try:
+                pt["dist"] = float(r["dist_to_target_m"])
+            except Exception:
+                pt["dist"] = None
+
+        pts.append(pt)
 
     # ---------------------------------------------------------
     # Return

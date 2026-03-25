@@ -5,7 +5,8 @@ import { state } from "./state.js";
 let map = null;
 let layersBySailor = new Map();     // sailor -> polyline
 let markerBySailor = new Map();     // (kept for compatibility; we no longer draw start markers)
-let timeMarksBySailor = new Map();  // sailor -> array of time markers (dots + labels)
+let timeMarksBySailor = new Map();
+let rankMarkers = new Map(); // sailor -> rank label  // sailor -> array of time markers (dots + labels)
 
 // Store current refresh track points so we can place bearing labels away from crowded tracks
 let trackLatLngsBySailor = new Map(); // sailor -> [[lat, lon], ...]
@@ -172,39 +173,120 @@ const player = (() => {
     return ans;
   }
 
-  function setTime(tNow) {
-    if (!ui || !mapRef || !layersRef) return;
+  
+function setTime(tNow) {
+  if (!ui || !mapRef || !layersRef) return;
 
-    tNow = clamp(tNow, minT, maxT);
-    ui.slider.value = String(tNow);
-    ui.idxBox.value = String(tNow);
+  tNow = clamp(tNow, minT, maxT);
+  ui.slider.value = String(tNow);
+  ui.idxBox.value = String(tNow);
 
-    for (const [sailor, pts] of ptsBySailor.entries()) {
-      if (!Array.isArray(pts) || pts.length === 0) continue;
+  const rankData = [];
 
-      const line = layersRef.get(sailor);
-      if (!line) continue;
+  for (const [sailor, pts] of ptsBySailor.entries()) {
+    if (!Array.isArray(pts) || pts.length === 0) continue;
 
-      const j = lastIndexAtOrBeforeTime(pts, tNow);
-      if (j < 0) {
-        // Nothing yet for this sailor at this time -> empty line
-        line.setLatLngs([]);
-        continue;
-      }
+    const line = layersRef.get(sailor);
+    if (!line) continue;
 
-      const latlngs = [];
-      for (let k = 0; k <= j; k++) {
-        const p = pts[k];
-        const lat = Number(p.lat);
-        const lon = Number(p.lon);
-        if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
-        latlngs.push([lat, lon]);
-      }
-      line.setLatLngs(latlngs);
+    const j = lastIndexAtOrBeforeTime(pts, tNow);
+
+    if (j < 0) {
+      line.setLatLngs([]);
+      continue;
     }
 
-    ui.lblNow.textContent = `T+${fmtMMSS(tNow)}`;
+    const latlngs = [];
+    for (let k = 0; k <= j; k++) {
+      const p = pts[k];
+      const lat = Number(p.lat);
+      const lon = Number(p.lon);
+      if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
+      latlngs.push([lat, lon]);
+    }
+
+    line.setLatLngs(latlngs);
+
+    const p = pts[j];
+    if (p && p.dist !== undefined) {
+      rankData.push({
+        sailor,
+        dist: Number(p.dist),
+        lat: Number(p.lat),
+        lon: Number(p.lon)
+      });
+    }
   }
+
+  rankData.sort((a, b) => a.dist - b.dist);
+  rankData.forEach((r, i) => r.rank = i + 1);
+
+  for (const [, m] of rankMarkers) {
+    try { mapRef.removeLayer(m); } catch {}
+  }
+  rankMarkers.clear();
+
+  for (const r of rankData) {
+    
+// offset marker slightly back from track head
+const pts = ptsBySailor.get(r.sailor);
+let lat = r.lat;
+let lon = r.lon;
+
+if (pts && pts.length > 1) {
+  const prev = pts[Math.max(0, pts.length - 2)];
+
+  if (prev) {
+    const p1 = mapRef.latLngToLayerPoint([r.lat, r.lon]);
+    const p0 = mapRef.latLngToLayerPoint([prev.lat, prev.lon]);
+
+    const dx = p1.x - p0.x;
+    const dy = p1.y - p0.y;
+    const mag = Math.hypot(dx, dy) || 1;
+
+    const backPx = 10;
+
+    const x = p1.x - (dx / mag) * backPx;
+    const y = p1.y - (dy / mag) * backPx;
+
+    const ll = mapRef.layerPointToLatLng([x, y]);
+    lat = ll.lat;
+    lon = ll.lng;
+  }
+}
+
+const marker = L.marker([lat, lon], {
+
+      interactive: false,
+      icon: L.divIcon({
+        className: "",
+        html: `
+          <div style="
+            font-size:10px;
+            font-weight:700;
+            color:black;
+            text-shadow:
+              0 0 3px white,
+              0 0 6px white,
+              0 0 9px white;
+            user-select:none;
+            pointer-events:none;
+          ">
+            ${r.rank}
+          </div>
+        `,
+        iconSize: [0,0],
+        iconAnchor: [0,0],
+      })
+    });
+
+    marker.addTo(mapRef);
+    rankMarkers.set(r.sailor, marker);
+  }
+
+  ui.lblNow.textContent = `T+${fmtMMSS(tNow)}`;
+}
+
 
   function init({ map, layersBySailor, tracksBySailorPoints }) {
     mapRef = map;
