@@ -31,3 +31,6 @@ race_id,date,race_number,fleet,venue,event,wind_dir_deg,wind_knots,sea_state,win
 260326_R1_yellow,260326,1,yellow,Palma,palma race training,55,15,flat,offshore gradient
 260326_R2_yellow,260326,2,yellow,Palma,palma race training,56,15,flat,offshore gradient
 260326_R3_yellow,260326,3,yellow,Palma,palma race training,55,15,flat,offshore gradient
+270326_R1_yellow,270326,1,yellow,Palma,palma race training,326,5,smooth,thermal
+270326_R2_yellow,270326,2,yellow,Palma,palma race training,287,4,smooth,unstable thermal
+270326_R3_yellow,270326,3,yellow,Palma,palma training,289,5,smooth,frontal change
