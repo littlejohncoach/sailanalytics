@@ -50,10 +50,11 @@ def derive_wind_from_totalraces(race_id: str):
 
                 for r in reader:
 
-                    if r.get("geom_leg_id") != "1":
+                    if str(r.get("geom_leg_id")).strip() != "1":
                         continue
 
-                    if r.get("is_upwind") != "1":
+                    is_upwind = str(r.get("is_upwind", "")).strip().lower()
+                    if is_upwind in ("0","false","","none"):
                         continue
 
                     try:

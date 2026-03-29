@@ -3,34 +3,34 @@ race_id,date,race_number,fleet,venue,event,wind_dir_deg,wind_knots,sea_state,win
 270226_R2_yellow,270226,2,yellow,vilamoura,GP,355,8,smooth,gradient
 270226_R1_blue,270226,1,blue,vilamoura,GP,330,8,smooth,gradient
 270226_R2_blue,270226,2,blue,vilamoura,GP,352,8,smooth,gradient
-170326_R1_yellow,170326,1,yellow,Palma,palma training,203,10,choppy,seabreeze
-170326_R2_yellow,170326,2,yellow,Palma,palma training,208,10,choppy,seabreeze
-170326_R3_yellow,170326,3,yellow,Palma,palma training,210,9,choppy,seabreeze
-170326_R4_yellow,170326,4,yellow,Palma,palma training,220,7,choppy,seabreeze
+170326_R1_yellow,170326,1,yellow,Palma,palma training,205,10,choppy,seabreeze
+170326_R2_yellow,170326,2,yellow,Palma,palma training,222,10,choppy,seabreeze
+170326_R3_yellow,170326,3,yellow,Palma,palma training,206,9,choppy,seabreeze
+170326_R4_yellow,170326,4,yellow,Palma,palma training,231,7,choppy,seabreeze
 170326_R5_yellow,170326,5,yellow,Palma,palma training,230,7,choppy,seabreeze
-170326_R6_yellow,170326,6,yellow,Palma,palma training,225,6,choppy,seabreeze
+170326_R6_yellow,170326,6,yellow,Palma,palma training,216,6,choppy,seabreeze
 180326_R1_yellow,180326,1,yellow,Palma,palma training,244,9,slight chop,seabreeze
 180326_R2_yellow,180326,2,yellow,Palma,palma training,220,9,slight chop,seabreeze
 180326_R3_yellow,180326,3,yellow,Palma,palma training,210,9,slight chop,seabreeze
 180326_R4_yellow,180326,4,yellow,Palma,palma training,200,8,slight chop,seabreeze
-180326_R5_yellow,180326,5,yellow,Palma,palma training,195,7,slight chop,seabreeze
-180326_R6_yellow,180326,6,yellow,Palma,palma training,210,6,slight chop,seabreeze
-180326_R7_yellow,180326,7,yellow,Palma,palma training,205,6,slight chop,seabreeze
-180326_R8_yellow,180326,8,yellow,Palma,palma training,205,5,slight chop,seabreeze
-220326_R1_yellow,220326,1,yellow,Palma,palma training,203,8,slight chop,seabreeze
-220326_R2_yellow,220326,2,yellow,Palma,palma training,70,8,slight chop,seabreeze
-220326_R3_yellow,220326,3,yellow,Palma,palma training,240,8,seabreeze,seabreeze
-220326_R4_yellow,220326,4,yellow,Palma,palma training,248,8,slight chop,seabreeze
-220326_R5_yellow,220326,5,yellow,Palma,palma training,230,8,slight chop,seabreeze
-230326_R1_yellow,230326,1,yellow,Palma,palma training races,68,14,light chop,gradient offshore
-230326_R2_yellow,230326,2,yellow,Palma,palma race training,77,15,light chop,gradient offshore
+180326_R5_yellow,180326,5,yellow,Palma,palma training,201,7,slight chop,seabreeze
+180326_R6_yellow,180326,6,yellow,Palma,palma training,198,6,slight chop,seabreeze
+180326_R7_yellow,180326,7,yellow,Palma,palma training,199,6,slight chop,seabreeze
+180326_R8_yellow,180326,8,yellow,Palma,palma training,129,5,slight chop,seabreeze
+220326_R1_yellow,220326,1,yellow,Palma,palma training,222,8,slight chop,seabreeze
+220326_R2_yellow,220326,2,yellow,Palma,palma training,270,8,slight chop,seabreeze
+220326_R3_yellow,220326,3,yellow,Palma,palma training,224,8,seabreeze,seabreeze
+220326_R4_yellow,220326,4,yellow,Palma,palma training,228,8,slight chop,seabreeze
+220326_R5_yellow,220326,5,yellow,Palma,palma training,228,8,slight chop,seabreeze
+230326_R1_yellow,230326,1,yellow,Palma,palma training races,60,14,light chop,gradient offshore
+230326_R2_yellow,230326,2,yellow,Palma,palma race training,69,15,light chop,gradient offshore
 230326_R3_yellow,230326,3,yellow,Palma,palma race training,74,15,light chop,gradient offshore
-250326_R1_yellow,250326,1,yellow,Palma,palma race training,227,9,choppy,seabreeze
+250326_R1_yellow,250326,1,yellow,Palma,palma race training,232,9,choppy,seabreeze
 250326_R2_yellow,250326,2,yellow,Palma,palma race training,228,9,choppy,seabreeze
-250326_R3_yellow,250326,3,yellow,Palma,palma race training,230,9,choppy,seabreeze
-260326_R1_yellow,260326,1,yellow,Palma,palma race training,55,15,flat,offshore gradient
-260326_R2_yellow,260326,2,yellow,Palma,palma race training,56,15,flat,offshore gradient
+250326_R3_yellow,250326,3,yellow,Palma,palma race training,225,9,choppy,seabreeze
+260326_R1_yellow,260326,1,yellow,Palma,palma race training,54,15,flat,offshore gradient
+260326_R2_yellow,260326,2,yellow,Palma,palma race training,61,15,flat,offshore gradient
 260326_R3_yellow,260326,3,yellow,Palma,palma race training,55,15,flat,offshore gradient
-270326_R1_yellow,270326,1,yellow,Palma,palma race training,326,5,smooth,thermal
-270326_R2_yellow,270326,2,yellow,Palma,palma race training,287,4,smooth,unstable thermal
+270326_R1_yellow,270326,1,yellow,Palma,palma race training,305,5,smooth,thermal
+270326_R2_yellow,270326,2,yellow,Palma,palma race training,290,4,smooth,unstable thermal
 270326_R3_yellow,270326,3,yellow,Palma,palma race training,289,5,smooth,frontal change
