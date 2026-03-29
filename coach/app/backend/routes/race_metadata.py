@@ -8,16 +8,10 @@ import csv
 
 router = APIRouter()
 
-# --------------------------------------------------
-# PATHS (FIXED FOR LOCAL + SERVER)
-# --------------------------------------------------
 BASE_DIR = Path.cwd()
 META_FILE = BASE_DIR / "data" / "race_metadata" / "race_metadata.csv"
 TOTAL_RACES_DIR = BASE_DIR / "data" / "totalraces"
 
-# --------------------------------------------------
-# SCHEMA (LOCKED TO YOUR REAL FILE)
-# --------------------------------------------------
 FIELDNAMES = [
     "race_id",
     "date",
@@ -31,39 +25,41 @@ FIELDNAMES = [
     "wind_type"
 ]
 
-# --------------------------------------------------
-# DERIVE WIND FROM TOTALRACES (LEG 1 ALL SAILORS)
-# --------------------------------------------------
+
+def circ_mean(values):
+    sin_sum = sum(math.sin(math.radians(v)) for v in values)
+    cos_sum = sum(math.cos(math.radians(v)) for v in values)
+    return math.degrees(math.atan2(sin_sum, cos_sum)) % 360
+
+
 def derive_wind_from_totalraces(race_id: str):
-
-    pattern = str(TOTAL_RACES_DIR / f"*_{race_id}.csv")
-    files = glob.glob(pattern)
-
-    if not files:
-        return None
 
     port = []
     stbd = []
 
+    files = glob.glob(str(TOTAL_RACES_DIR / "*.csv"))
+
     for file in files:
+
+        if race_id not in file:
+            continue
+
         try:
             with open(file, newline="", encoding="utf-8") as f:
                 reader = csv.DictReader(f)
 
                 for r in reader:
 
-                    # leg 1 only
                     if r.get("geom_leg_id") != "1":
                         continue
 
-                    # upwind only
                     if r.get("is_upwind") != "1":
                         continue
 
                     try:
                         cog = float(r["COG_deg"])
                         axis = float(r["axis_angle_signed_deg"])
-                    except Exception:
+                    except:
                         continue
 
                     if axis > 0:
@@ -77,53 +73,62 @@ def derive_wind_from_totalraces(race_id: str):
     if not port or not stbd:
         return None
 
-    # circular mean helper
-    def circ_mean(values):
-        sin_sum = sum(math.sin(math.radians(v)) for v in values)
-        cos_sum = sum(math.cos(math.radians(v)) for v in values)
-        return math.degrees(math.atan2(sin_sum, cos_sum)) % 360
-
     port_mean = circ_mean(port)
     stbd_mean = circ_mean(stbd)
 
-    wind = circ_mean([port_mean, stbd_mean])
-
-    return int(round(wind))
+    return int(round(circ_mean([port_mean, stbd_mean])))
 
 
-# --------------------------------------------------
-# PURE FUNCTION
-# --------------------------------------------------
-def load_metadata(race_id: str) -> dict:
+def update_metadata_csv():
+
     if not META_FILE.exists():
-        return {}
+        return
 
-    race_id_clean = (race_id or "").strip().lower()
+    rows = []
 
     with open(META_FILE, newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f)
 
         for row in reader:
-            row_id = (row.get("race_id") or "").strip().lower()
 
-            if row_id == race_id_clean:
+            race_id = row.get("race_id")
 
-                result = {k: row.get(k, "") for k in FIELDNAMES}
+            wind = derive_wind_from_totalraces(race_id)
 
-                # override wind direction from totalraces
-                derived = derive_wind_from_totalraces(race_id)
+            if wind is not None:
+                row["wind_dir_deg"] = str(wind)
+                print(race_id, "->", wind)
 
-                if derived is not None:
-                    result["wind_dir_deg"] = str(derived)
+            rows.append(row)
 
-                return result
+    with open(META_FILE, "w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, FIELDNAMES)
+        writer.writeheader()
+        writer.writerows(rows)
+
+    print("metadata updated")
+
+
+def load_metadata(race_id: str) -> dict:
+    if not META_FILE.exists():
+        return {}
+
+    race_id = (race_id or "").strip().lower()
+
+    with open(META_FILE, newline="", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+
+        for row in reader:
+            if (row.get("race_id") or "").strip().lower() == race_id:
+                return {k: row.get(k, "") for k in FIELDNAMES}
 
     return {}
 
 
-# --------------------------------------------------
-# API
-# --------------------------------------------------
 @router.get("/race_metadata")
 def get_metadata(race_id: str):
     return load_metadata(race_id)
+
+
+if __name__ == "__main__":
+    update_metadata_csv()
