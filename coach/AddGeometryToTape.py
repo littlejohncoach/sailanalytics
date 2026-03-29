@@ -355,6 +355,24 @@ def angular_diff_deg(a_deg: np.ndarray, b_deg: np.ndarray) -> np.ndarray:
     return np.abs(d)
 
 
+def circular_mean_deg(arr: np.ndarray) -> float:
+    arr = np.asarray(arr, dtype=float)
+    if arr.size == 0:
+        raise ValueError("circular_mean_deg requires at least one value")
+    rad = np.deg2rad(arr)
+    s = np.sin(rad).mean()
+    c = np.cos(rad).mean()
+    ang = np.degrees(np.arctan2(s, c))
+    if ang < 0:
+        ang += 360.0
+    return float(ang)
+
+
+def angular_diff_scalar(a: float, b: float) -> float:
+    d = abs((a - b) % 360.0)
+    return 360.0 - d if d > 180.0 else d
+
+
 # --------------------------------------------------
 # CORE
 # --------------------------------------------------
@@ -520,6 +538,66 @@ def enrich_tape_with_geometry(tape_path: Path, geom: pd.DataFrame) -> tuple[Path
     df["ATB_angle_deg"] = atb_angle_deg.astype(int)
     df["ATB_offset_deg"] = pd.array(atb_offset, dtype="Int64")
 
+    # ---------------------------
+    # TRUE UPWIND DISTANCE REMAINING
+    # Correct method:
+    # - infer port/stbd means on each upwind leg
+    # - infer wind direction as circular midpoint
+    # - infer half-angle = tack_angle / 2
+    # - per row: deviation from that tack mean
+    # - burden angle = half_angle + deviation
+    # ---------------------------
+    df["axis_angle_signed_deg"] = pd.Series(pd.NA, index=df.index, dtype="Float64")
+    df["is_upwind"] = is_upwind
+    df["upwind_dist_remaining_m"] = pd.Series(pd.NA, index=df.index, dtype="Int64")
+
+    for leg in np.unique(geom_leg_id):
+        leg_mask = geom_leg_id == leg
+        up_mask = leg_mask & is_upwind
+        if np.sum(up_mask) < 10:
+            continue
+
+        leg_cog = cog_deg[up_mask].astype(float)
+        leg_axis = (((leg_cog - 180.0) + 180.0) % 360.0) - 180.0  # harmless unwrap helper
+
+        # split tacks using sign of signed angle around inferred wind-side divide
+        # practical rule for current system: use sign relative to geometry bearing as initial split only
+        geom_brg = float(np.unique(geom_leg_bearing_deg[leg_mask])[0])
+        signed_to_geom = ((leg_cog - geom_brg + 180.0) % 360.0) - 180.0
+
+        port_rows = signed_to_geom < 0
+        stbd_rows = signed_to_geom >= 0
+
+        if np.sum(port_rows) < 5 or np.sum(stbd_rows) < 5:
+            continue
+
+        port_mean = circular_mean_deg(leg_cog[port_rows])
+        stbd_mean = circular_mean_deg(leg_cog[stbd_rows])
+
+        tack_angle = angular_diff_scalar(port_mean, stbd_mean)
+        half_angle = tack_angle / 2.0
+        wind_dir = circular_mean_deg(np.array([port_mean, stbd_mean], dtype=float))
+
+        leg_idx = np.where(up_mask)[0]
+        leg_cog_full = cog_deg[up_mask].astype(float)
+
+        port_dev = np.array([angular_diff_scalar(v, port_mean) for v in leg_cog_full], dtype=float)
+        stbd_dev = np.array([angular_diff_scalar(v, stbd_mean) for v in leg_cog_full], dtype=float)
+
+        use_port = port_dev <= stbd_dev
+        chosen_dev = np.where(use_port, port_dev, stbd_dev)
+        chosen_sign = np.where(use_port, -1.0, 1.0)
+
+        burden_angle = half_angle + chosen_dev
+        burden_angle = np.clip(burden_angle, 0.0, 89.0)
+
+        dist_vals = df.loc[up_mask, "dist_to_target_m"].to_numpy(dtype=float)
+        rem_vals = np.rint(dist_vals / np.cos(np.deg2rad(burden_angle))).astype(int)
+
+        signed_axis = chosen_sign * chosen_dev
+
+        df.loc[up_mask, "axis_angle_signed_deg"] = signed_axis
+        df.loc[up_mask, "upwind_dist_remaining_m"] = pd.array(rem_vals, dtype="Int64")
     out_path = OUT_DIR / tape_path.name
     atomic_write_csv(df, out_path)
     return out_path, notes

@@ -149,9 +149,11 @@ def api_track(
         raise HTTPException(status_code=500, detail="Latitude/Longitude columns not found")
 
     # ---------------------------------------------------------
-    # DISTANCE TO TARGET (from TOTALRACES)
+    # DISTANCE TO TARGET (UPWIND-AWARE)
     # ---------------------------------------------------------
     has_dist = "dist_to_target_m" in df.columns
+    has_upwind = "upwind_dist_remaining_m" in df.columns
+    has_is_upwind = "is_upwind" in df.columns
 
     # ---------------------------------------------------------
     # Build points (WITH TIME + DISTANCE)
@@ -173,7 +175,11 @@ def api_track(
 
         if has_dist:
             try:
-                pt["dist"] = float(r["dist_to_target_m"])
+                if has_is_upwind and has_upwind and bool(r["is_upwind"]):
+                    val = r["upwind_dist_remaining_m"]
+                    pt["dist"] = float(val) if pd.notna(val) else None
+                else:
+                    pt["dist"] = float(r["dist_to_target_m"])
             except Exception:
                 pt["dist"] = None
 
