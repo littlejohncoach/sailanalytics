@@ -36,3 +36,5 @@ race_id,date,race_number,fleet,venue,event,wind_dir_deg,wind_knots,sea_state,win
 270326_R3_yellow,270326,3,yellow,Palma,palma race training,289,5,smooth,frontal change
 310326_R1_blue,310326,1,blue,Palma,palma regatta day 2,50,10,slightly choppy,offshore gradient
 010426_R1_yellow,010426,1,yellow,Palma,palma Regatta day 3,42,22,choppy,offshore gradient
+020426_R1_yellow,020426,1,yellow,Palma,palma Regatta day 3,342,14,choppy,offshore gradient
+020426_R2_yellow,020426,2,yellow,Palma,palma regatta,273,15,choppy,onshore gradient
