@@ -37,4 +37,6 @@ race_id,date,race_number,fleet,venue,event,wind_dir_deg,wind_knots,sea_state,win
 310326_R1_blue,310326,1,blue,Palma,palma regatta day 2,50,10,slightly choppy,offshore gradient
 010426_R1_yellow,10426,1,yellow,Palma,palma Regatta day 3,42,22,choppy,offshore gradient
 020426_R1_yellow,20426,1,yellow,Palma,palma Regatta day 3,342,14,choppy,offshore gradient
-020426_R2_yellow,20426,2,yellow,Palma,palma regatta,273,15,choppy,onshore gradient
+020426_R2_yellow,20426,2,yellow,Palma,palma regatta,273,15,choppy,onshore gradient030426_R1_yellow,030426,1,yellow,Palma,palma Regatta Day 4,252,12,choppy,seabreeze
+030426_R2_yellow,030426,2,yellow,Palma,palma Regatta,250,14,choppy,seabreeze
+030426_R3_yellow,030426,3,yellow,Palma,palma regatta day 4,253,15,choppy,seabreeze
