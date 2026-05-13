@@ -40,3 +40,7 @@ race_id,date,race_number,fleet,venue,event,wind_dir_deg,wind_knots,sea_state,win
 020426_R2_yellow,20426,2,yellow,Palma,palma regatta,273,15,choppy,onshore gradient030426_R1_yellow,030426,1,yellow,Palma,palma Regatta Day 4,252,12,choppy,seabreeze
 030426_R2_yellow,030426,2,yellow,Palma,palma Regatta,250,14,choppy,seabreeze
 030426_R3_yellow,030426,3,yellow,Palma,palma regatta day 4,253,15,choppy,seabreeze
+120526_R1_yellow,120526,1,yellow,Kastella,training,245,6,flat,thermal
+120526_R2_yellow,120526,2,yellow,Kastella,training,222,6,flat,thermal
+120526_R3_yellow,120526,3,yellow,Kastella,training,214,6,flat,thermal
+120526_R4_yellow,120526,4,yellow,katella,training,241,6,flat,thermal
