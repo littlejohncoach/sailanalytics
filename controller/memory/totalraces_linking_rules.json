@@ -1,0 +1,32 @@
+{
+  "TotalRaceLinkingRules": {
+
+    "race_id_usage": {
+      "definition": "race_id = <DDMMYY>_R<race_number>_<fleet>",
+      "example": "030426_R3_yellow"
+    },
+
+    "geometry_link": {
+      "rule": "geometry file uses race_id",
+      "path": "data/geometry/geometry_<race_id>.csv",
+      "example": "data/geometry/geometry_030426_R3_yellow.csv"
+    },
+
+    "fleet_group": {
+      "rule": "all totalrace files sharing race_id belong to same race",
+      "pattern": "data/totalraces/*_<race_id>.csv"
+    },
+
+    "comparison_group": {
+      "definition": "all sailors with same race_id are compared together"
+    },
+
+    "analytics_scope": {
+      "definition": "leaderboards and analytics operate within race_id"
+    },
+
+    "track_alignment": {
+      "definition": "tracks with same race_id share same time axis and geometry"
+    }
+  }
+}

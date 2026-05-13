@@ -1,0 +1,5 @@
+{
+  "allowed_root": "./allowed_root",
+  "max_file_size_mb": 100,
+  "allowed_extensions": [".csv", ".json", ".py", ".txt"]
+}

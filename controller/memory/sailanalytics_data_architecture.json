@@ -1,0 +1,98 @@
+{
+  "SailAnalyticsDataArchitecture": {
+
+    "data_root": "data/",
+
+    "directories": {
+
+      "fit": {
+        "path": "data/fit/",
+        "role": "raw device files",
+        "description": "original .FIT files recorded by sailors",
+        "stage": "raw input"
+      },
+
+      "tapes": {
+        "path": "data/tapes/",
+        "role": "truth tapes",
+        "description": "per-sailor processed time series from FIT files",
+        "stage": "truth layer"
+      },
+
+      "totalraces": {
+        "path": "data/totalraces/",
+        "role": "aligned race tracks",
+        "description": "per-sailor race files aligned to common race time axis",
+        "stage": "analytics layer"
+      },
+
+      "geometry": {
+        "path": "data/geometry/",
+        "role": "course definition",
+        "pattern": "geometry_<race_id>.csv",
+        "description": "course marks and leg structure per race"
+      },
+
+      "marks": {
+        "path": "data/marks/",
+        "pattern": "marks_<race_id>.csv",
+        "role": "mark coordinates",
+        "description": "buoy positions for each race"
+      },
+
+      "race_metadata": {
+        "path": "data/race_metadata/",
+        "file": "race_metadata.csv",
+        "role": "race info",
+        "description": "wind, venue, event, conditions"
+      },
+
+      "racetimes": {
+        "path": "data/racetimes/",
+        "file": "RaceTimes.csv",
+        "role": "start/finish timing",
+        "description": "race timing reference"
+      },
+
+      "roster": {
+        "path": "data/roster/",
+        "file": "RosterColors.csv",
+        "role": "sailor roster",
+        "description": "sailor identity and fleet color mapping"
+      },
+
+      "trimmed": {
+        "path": "data/trimmed/",
+        "role": "cleaned tracks",
+        "description": "trimmed race segments"
+      },
+
+      "ready": {
+        "path": "data/ready/",
+        "role": "staging",
+        "description": "ready-to-publish race outputs"
+      },
+
+      "archive": {
+        "path": "data/archive/",
+        "role": "historical storage",
+        "description": "backup race files"
+      }
+    },
+
+    "data_pipeline": [
+      "fit -> tapes",
+      "tapes -> totalraces",
+      "geometry + totalraces -> analytics",
+      "metadata + racetimes -> race context"
+    ],
+
+    "race_linking": {
+      "race_id": "<DDMMYY>_R<race>_<fleet>",
+      "geometry": "data/geometry/geometry_<race_id>.csv",
+      "marks": "data/marks/marks_<race_id>.csv",
+      "totalraces": "data/totalraces/*_<race_id>.csv",
+      "tapes": "data/tapes/*_<race_id>.csv"
+    }
+  }
+}

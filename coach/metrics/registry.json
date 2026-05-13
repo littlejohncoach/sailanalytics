@@ -1,0 +1,14 @@
+{
+  "tack_count": {
+    "execution": {
+      "module": "coach.metrics.functions.tacks",
+      "function": "compute_tack_count"
+    }
+  },
+  "tack_angle": {
+    "execution": {
+      "module": "coach.metrics.functions.tack_angle",
+      "function": "compute_tack_angle"
+    }
+  }
+}

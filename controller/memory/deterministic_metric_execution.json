@@ -1,0 +1,4 @@
+{
+  "rule": "deterministic_metric_execution",
+  "statement": "The LLM is responsible only for interpreting user intent and selecting the correct metric. It is not allowed to define, modify, approximate, or execute any calculation. All calculations must be performed using predefined deterministic functions. If a requested calculation is not available in the metric registry, the LLM must not attempt to compute it and must instead return an 'execution_not_available' response, optionally including a proposed definition for human review."
+}

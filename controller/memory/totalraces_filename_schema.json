@@ -1,0 +1,51 @@
+{
+  "TotalRaceFilenameSchema": {
+    "pattern": "<sailor>_<DDMMYY>_R<race_number>_<fleet>.csv",
+
+    "example": "yalcin_030426_R3_yellow.csv",
+
+    "fields": {
+      "sailor": {
+        "description": "christian name lowercase",
+        "example": "yalcin"
+      },
+
+      "date": {
+        "format": "DDMMYY",
+        "example": "030426",
+        "meaning": "03 April 2026"
+      },
+
+      "race_number": {
+        "prefix": "R",
+        "example": "R3",
+        "meaning": "Race 3"
+      },
+
+      "fleet": {
+        "description": "fleet or start group color",
+        "example": "yellow"
+      }
+    },
+
+    "race_id_derivation": {
+      "rule": "<DDMMYY>_R<race_number>_<fleet>",
+      "example": "030426_R3_yellow"
+    },
+
+    "linking_rules": {
+      "geometry_file": "data/geometry/geometry_<race_id>.csv",
+      "totalrace_files": "data/totalraces/*_<race_id>.csv",
+      "fleet_grouping": "all files sharing same race_id belong to same race"
+    },
+
+    "deterministic_properties": [
+      "filename defines sailor identity",
+      "filename defines race date",
+      "filename defines race number",
+      "filename defines fleet",
+      "filename defines race_id",
+      "race_id links geometry and totalrace files"
+    ]
+  }
+}

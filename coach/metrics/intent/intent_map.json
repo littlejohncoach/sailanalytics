@@ -1,0 +1,14 @@
+{
+  "tack_angle": [
+    "tack angle",
+    "tacking angle",
+    "average tack angle",
+    "angle to wind",
+    "average angle to wind"
+  ],
+  "tack_count": [
+    "tack count",
+    "number of tacks",
+    "how many tacks"
+  ]
+}

@@ -1,0 +1,102 @@
+{
+  "timestamp_utc": {
+    "definition": "UTC timestamp for each aligned race record, stored at 1-second resolution in the totalraces analytics layer.",
+    "purpose": "Acts as the shared time key so all sailors in the same race_id can be aligned and compared on the same race timeline."
+  },
+  "latitude": {
+    "definition": "Boat latitude in decimal degrees for the sailor position at each timestamp_utc.",
+    "purpose": "Used to represent the boat’s geographic position for track plotting and for all location-based race calculations."
+  },
+  "longitude": {
+    "definition": "Boat longitude in decimal degrees for the sailor position at each timestamp_utc.",
+    "purpose": "Used with latitude to define the boat track and support spatial calculations against marks, legs, and targets."
+  },
+  "heart_rate": {
+    "definition": "Recorded sailor heart rate value for that timestamp, stored as an integer and varying through the race.",
+    "purpose": "Provides physiological effort data that can be analyzed alongside boat movement and race progression."
+  },
+  "finish_time_utc": {
+    "definition": "UTC timestamp of that sailor’s race finish, repeated across all rows in the file.",
+    "purpose": "Provides the per-sailor finish reference used to identify race completion timing within the aligned race dataset."
+  },
+  "elapsed_race_time_s": {
+    "definition": "Total race time in seconds measured from verified start to finish-line crossing, repeated across all rows.",
+    "purpose": "Provides the final race duration used for ranking and race-level comparison between sailors."
+  },
+  "finished_flag": {
+    "definition": "Binary indicator showing whether the sailor has a recorded finish in that race file, with observed value 1 for finished rows.",
+    "purpose": "Marks whether the race result is complete for the sailor so finished and unfinished tracks can be distinguished in analytics."
+  },
+  "seg_dist_m": {
+    "definition": "Distance traveled during the current 1-second segment, in meters, with 0 when the position does not change.",
+    "purpose": "Provides the step-by-step movement measure used to quantify instantaneous progress and build cumulative distance metrics."
+  },
+  "dist_from_start_m": {
+    "definition": "Cumulative distance traveled from the first row of the race file, in meters.",
+    "purpose": "Tracks how much path length the boat has covered since the aligned race start for progression and workload analysis."
+  },
+  "SOG_raw_mpm": {
+    "definition": "Raw speed over ground derived from movement between consecutive points, expressed in meters per minute.",
+    "purpose": "Captures unprocessed boat speed for second-by-second performance analysis before any higher-level tactical interpretation."
+  },
+  "COG_raw_deg": {
+    "definition": "Raw course over ground in degrees derived from consecutive positions, with 0 when no movement is recorded.",
+    "purpose": "Represents the boat’s immediate travel direction for each segment before the direction is normalized into analytics fields."
+  },
+  "geom_leg_id": {
+    "definition": "Geometry-defined leg identifier showing which course leg the boat is assigned to at that timestamp.",
+    "purpose": "Links each record to the race geometry so position and progress can be interpreted in the context of course structure."
+  },
+  "geom_from_mark": {
+    "definition": "Name or label of the mark the current geometry leg starts from.",
+    "purpose": "Defines the origin of the active leg so the boat’s current course segment can be understood relative to race marks."
+  },
+  "geom_to_mark": {
+    "definition": "Name or identifier of the mark the current geometry leg is heading toward for that row.",
+    "purpose": "Identifies the active destination mark used to evaluate current leg progress and targeting."
+  },
+  "geom_leg_bearing_deg": {
+    "definition": "Bearing in degrees of the current geometry leg from geom_from_mark toward geom_to_mark.",
+    "purpose": "Provides the reference course direction for leg-based comparisons such as heading alignment and tactical offset analysis."
+  },
+  "target_lat_deg": {
+    "definition": "Latitude in decimal degrees of the active target mark associated with the current row.",
+    "purpose": "Supplies the target mark position needed for distance and bearing calculations from the boat to its current objective."
+  },
+  "target_lon_deg": {
+    "definition": "Longitude in decimal degrees of the active target mark associated with the current row.",
+    "purpose": "Works with target_lat_deg to define the destination point used in mark-targeting and leg-progress calculations."
+  },
+  "dist_to_target_m": {
+    "definition": "Current distance from the boat position to the active target mark, in meters.",
+    "purpose": "Measures remaining straight-line distance to the next mark for progress tracking and tactical assessment."
+  },
+  "bearing_to_target_deg": {
+    "definition": "Bearing in degrees from the boat’s current position to the active target mark.",
+    "purpose": "Defines the direct direction to the target mark so boat direction can be compared against the shortest path to target."
+  },
+  "COG_deg": {
+    "definition": "Processed course over ground in degrees used by the analytics layer.",
+    "purpose": "Provides the normalized boat travel direction used in downstream tactical and leg-relative calculations."
+  },
+  "ATB_angle_deg": {
+    "definition": "Absolute angular difference between COG_deg and bearing_to_target_deg, expressed in degrees.",
+    "purpose": "Quantifies how directly the boat is sailing toward the target mark for tactical efficiency analysis."
+  },
+  "ATB_offset_deg": {
+    "definition": "Signed angular difference between COG_deg and bearing_to_target_deg indicating side of the direct target line.",
+    "purpose": "Shows whether the boat is offset left or right of the direct line to the target mark."
+  },
+  "axis_angle_signed_deg": {
+    "definition": "Signed angular difference between COG_deg and geom_leg_bearing_deg.",
+    "purpose": "Indicates which side of the leg axis the boat is sailing on."
+  },
+  "is_upwind": {
+    "definition": "Boolean flag indicating whether the current geometry context is classified as upwind.",
+    "purpose": "Separates upwind from non-upwind sailing so analytics can apply correct tactical interpretation."
+  },
+  "upwind_dist_remaining_m": {
+    "definition": "Remaining upwind distance measure in meters for the current row when in an upwind context.",
+    "purpose": "Tracks how much upwind course distance remains for progress assessment."
+  }
+}

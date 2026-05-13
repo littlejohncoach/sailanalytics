@@ -1,0 +1,271 @@
+{
+  "VREA": {
+    "name": "Validated Reasoning Expert Agent (VREA)",
+    "core_operating_rules": [
+      "Agent must read directory structure before generating answers",
+      "Agent must inspect available files before assuming schema",
+      "Agent must prefer filesystem inspection over assumptions",
+      "Agent must use local data as source of truth",
+      "Agent must consult memory before reasoning"
+    ],
+    "memory_priority": [
+      "knowledge.json",
+      "directory structure",
+      "actual files",
+      "then reasoning"
+    ]
+  },
+  "TotalRaceFilenameSchema": {
+    "pattern": "<sailor>_<DDMMYY>_R<race_number>_<fleet>.csv",
+    "example": "yalcin_030426_R3_yellow.csv",
+    "fields": {
+      "sailor": {
+        "description": "christian name lowercase",
+        "example": "yalcin"
+      },
+      "date": {
+        "format": "DDMMYY",
+        "example": "030426",
+        "meaning": "03 April 2026"
+      },
+      "race_number": {
+        "prefix": "R",
+        "example": "R3",
+        "meaning": "Race 3"
+      },
+      "fleet": {
+        "description": "fleet or start group color",
+        "example": "yellow"
+      }
+    },
+    "race_id_derivation": {
+      "rule": "<DDMMYY>_R<race_number>_<fleet>",
+      "example": "030426_R3_yellow"
+    },
+    "linking_rules": {
+      "geometry_file": "data/geometry/geometry_<race_id>.csv",
+      "totalrace_files": "data/totalraces/*_<race_id>.csv",
+      "fleet_grouping": "all files sharing same race_id belong to same race"
+    },
+    "deterministic_properties": [
+      "filename defines sailor identity",
+      "filename defines race date",
+      "filename defines race number",
+      "filename defines fleet",
+      "filename defines race_id",
+      "race_id links geometry and totalrace files"
+    ]
+  },
+  "TotalRaceLinkingRules": {
+    "race_id_usage": {
+      "definition": "race_id = <DDMMYY>_R<race_number>_<fleet>",
+      "example": "030426_R3_yellow"
+    },
+    "geometry_link": {
+      "rule": "geometry file uses race_id",
+      "path": "data/geometry/geometry_<race_id>.csv",
+      "example": "data/geometry/geometry_030426_R3_yellow.csv"
+    },
+    "fleet_group": {
+      "rule": "all totalrace files sharing race_id belong to same race",
+      "pattern": "data/totalraces/*_<race_id>.csv"
+    },
+    "comparison_group": {
+      "definition": "all sailors with same race_id are compared together"
+    },
+    "analytics_scope": {
+      "definition": "leaderboards and analytics operate within race_id"
+    },
+    "track_alignment": {
+      "definition": "tracks with same race_id share same time axis and geometry"
+    }
+  },
+  "SailAnalyticsDataArchitecture": {
+    "data_root": "data/",
+    "directories": {
+      "fit": {
+        "path": "data/fit/",
+        "role": "raw device files",
+        "description": "original .FIT files recorded by sailors",
+        "stage": "raw input"
+      },
+      "tapes": {
+        "path": "data/tapes/",
+        "role": "truth tapes",
+        "description": "per-sailor processed time series from FIT files",
+        "stage": "truth layer"
+      },
+      "totalraces": {
+        "path": "data/totalraces/",
+        "role": "aligned race tracks",
+        "description": "per-sailor race files aligned to common race time axis",
+        "stage": "analytics layer"
+      },
+      "geometry": {
+        "path": "data/geometry/",
+        "role": "course definition",
+        "pattern": "geometry_<race_id>.csv",
+        "description": "course marks and leg structure per race"
+      },
+      "marks": {
+        "path": "data/marks/",
+        "pattern": "marks_<race_id>.csv",
+        "role": "mark coordinates",
+        "description": "buoy positions for each race"
+      },
+      "race_metadata": {
+        "path": "data/race_metadata/",
+        "file": "race_metadata.csv",
+        "role": "race info",
+        "description": "wind, venue, event, conditions"
+      },
+      "racetimes": {
+        "path": "data/racetimes/",
+        "file": "RaceTimes.csv",
+        "role": "start/finish timing",
+        "description": "race timing reference"
+      },
+      "roster": {
+        "path": "data/roster/",
+        "file": "RosterColors.csv",
+        "role": "sailor roster",
+        "description": "sailor identity and fleet color mapping"
+      },
+      "trimmed": {
+        "path": "data/trimmed/",
+        "role": "cleaned tracks",
+        "description": "trimmed race segments"
+      },
+      "ready": {
+        "path": "data/ready/",
+        "role": "staging",
+        "description": "ready-to-publish race outputs"
+      },
+      "archive": {
+        "path": "data/archive/",
+        "role": "historical storage",
+        "description": "backup race files"
+      }
+    },
+    "data_pipeline": [
+      "fit -> tapes",
+      "tapes -> totalraces",
+      "geometry + totalraces -> analytics",
+      "metadata + racetimes -> race context"
+    ],
+    "race_linking": {
+      "race_id": "<DDMMYY>_R<race>_<fleet>",
+      "geometry": "data/geometry/geometry_<race_id>.csv",
+      "marks": "data/marks/marks_<race_id>.csv",
+      "totalraces": "data/totalraces/*_<race_id>.csv",
+      "tapes": "data/tapes/*_<race_id>.csv"
+    }
+  },
+  "VREAComputationModel": {
+    "principle": "LLM decides calculation, Python executes on full data, LLM explains result",
+    "roles": {
+      "LLM": [
+        "decides what must be computed",
+        "selects files and scope",
+        "chooses aggregation method",
+        "interprets computed result"
+      ],
+      "PythonTools": [
+        "load full files locally",
+        "compute across entire dataset",
+        "aggregate large datasets",
+        "return minimal result only"
+      ],
+      "Filesystem": [
+        "single source of truth",
+        "no preview reads",
+        "no partial file reasoning",
+        "full dataset must be used"
+      ]
+    },
+    "pipeline": [
+      "LLM determines required calculation",
+      "Python tool loads full dataset locally",
+      "Python computes required metric",
+      "Python returns minimal aggregated result",
+      "LLM explains result"
+    ],
+    "rules": [
+      "Agent must never reason from file previews",
+      "Agent must not send full CSV data to model",
+      "Agent must load full dataset locally before computation",
+      "Large datasets must be aggregated locally",
+      "Model reasoning must operate on computed results only"
+    ]
+  },
+  "MarksFileSpecification": {
+    "purpose": "Defines buoy positions for map rendering and course structure",
+    "linking": {
+      "pattern": "data/marks/marks_<race_id>.csv",
+      "example": "data/marks/marks_030426_R3_yellow.csv",
+      "race_id_source": "derived from totalrace filename"
+    },
+    "role_in_system": [
+      "defines buoy positions",
+      "defines course layout",
+      "used for map rendering",
+      "used for geometry visualization",
+      "used for leg drawing",
+      "used for track-to-mark calculations"
+    ],
+    "expected_columns": [
+      "mark_id",
+      "mark_name",
+      "latitude",
+      "longitude"
+    ],
+    "typical_marks": [
+      "start_pin",
+      "start_boat",
+      "windward_mark",
+      "gate_left",
+      "gate_right",
+      "leeward_mark",
+      "finish"
+    ],
+    "map_rendering_rules": [
+      "marks must be plotted as map points",
+      "marks define course legs",
+      "geometry lines connect marks",
+      "tracks are drawn relative to marks",
+      "distance-to-mark calculations use marks"
+    ],
+    "deterministic_properties": [
+      "marks file belongs to race_id",
+      "all sailors in race share same marks",
+      "marks define course layout",
+      "marks are static within race"
+    ]
+  },
+  "MarksGeometryRelationship": {
+    "rule": "marks define positions, geometry defines leg order",
+    "marks_role": [
+      "provide buoy coordinates",
+      "define map anchor points",
+      "used for plotting map markers"
+    ],
+    "geometry_role": [
+      "defines leg order",
+      "defines course sequence",
+      "defines start to windward leg",
+      "defines windward to gate leg",
+      "defines lap structure"
+    ],
+    "rendering_pipeline": [
+      "load marks positions",
+      "load geometry leg definitions",
+      "connect marks using geometry order",
+      "draw course lines",
+      "overlay tracks"
+    ],
+    "important_constraint": [
+      "marks alone must NOT determine leg order",
+      "geometry must define connections between marks"
+    ]
+  }
+}
